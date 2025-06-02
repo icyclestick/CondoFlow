@@ -79,7 +79,7 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen">
         <Sidebar>
           <SidebarHeader>
             <div className="flex items-center gap-2 px-4 py-2">
@@ -138,7 +138,7 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
           </SidebarFooter>
           <SidebarRail />
         </Sidebar>
-        <div className="flex-1 overflow-auto w-full">
+        <div className="flex-1 overflow-auto">
           <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-6">
             <SidebarTrigger />
             <div className="ml-auto flex items-center gap-4">
