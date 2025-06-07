@@ -2,26 +2,33 @@
 
 import { revalidatePath } from "next/cache"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createServerSupabaseServiceClient } from "@/lib/supabase/service-client"
 
 export async function createResidentAccount(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-
-  // Check if the current user is an admin
+  // 1. Use anon client for session/user checks
+  const userClient = await createServerSupabaseClient()
   const {
     data: { user },
     error: authError,
-  } = await supabase.auth.getUser()
+  } = await userClient.auth.getUser()
 
   if (authError || !user) {
     throw new Error("Unauthorized")
   }
 
   // Verify admin role
-  const { data: adminProfile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+  const { data: adminProfile } = await userClient
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
 
   if (adminProfile?.role !== "admin") {
     throw new Error("Only administrators can create resident accounts")
   }
+
+  // 2. Use service role client for admin actions
+  const supabase = createServerSupabaseServiceClient()
 
   // Extract form data
   const email = formData.get("email") as string
