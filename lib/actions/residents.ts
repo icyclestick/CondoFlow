@@ -1,36 +1,15 @@
 "use server"
 
-import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { createServerSupabaseServiceClient } from "../supabase/service-client"
 
-// Authentication & Authorization Helper
-async function getAuthenticatedUser(requiredRole?: "admin" | "resident") {
-  const supabase = await createServerSupabaseClient()
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-  if (authError || !user) {
-    throw new Error("Unauthorized")
-  }
-
-  if (requiredRole) {
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
-
-    if (profile?.role !== requiredRole) {
-      throw new Error(`Access denied. ${requiredRole} role required.`)
-    }
-  }
-
-  return { user, supabase }
-}
 
 // Get all residents (Admin only)
 export async function getAllResidents() {
-  const { supabase } = await getAuthenticatedUser("admin")
+  const supabase = createServerSupabaseServiceClient()
 
   try {
+    console.log("Fetching residents from profiles...");
     const { data: residents, error } = await supabase
       .from("profiles")
       .select(`
@@ -48,17 +27,20 @@ export async function getAllResidents() {
         emergency_contact_phone
       `)
       .eq("role", "resident")
-      .order("full_name")
+      .order("full_name");
 
     if (error) {
-      throw new Error(`Failed to fetch residents: ${error.message}`)
+      console.error("Error fetching residents:", error);
+      throw new Error(`Failed to fetch residents: ${error.message}`);
     }
 
-    // Get unit relationships for each resident
+    console.log("Residents fetched from profiles:", residents);
+
     const residentsWithUnits = await Promise.all(
       (residents || []).map(async (resident) => {
-        // Get primary unit they live in
-        const { data: residingUnits } = await supabase
+        console.log("Fetching unit_residency for resident:", resident.id);
+
+        const { data: residingUnits, error: residencyError } = await supabase
           .from("unit_residency")
           .select(`
             id,
@@ -74,26 +56,32 @@ export async function getAllResidents() {
           .eq("resident_id", resident.id)
           .eq("is_active", true)
           .order("is_primary_resident", { ascending: false })
-          .limit(1)
+          .limit(1);
 
-        // Transform to match the expected Resident interface
+        if (residencyError) {
+          console.error("Error fetching unit_residency:", residencyError);
+        }
+
+        console.log("Residing units for resident:", residingUnits);
+
         return {
           ...resident,
           units: residingUnits && residingUnits.length > 0 ? residingUnits[0].units : null,
-        }
-      }),
-    )
+        };
+      })
+    );
 
-    return residentsWithUnits
+    console.log("Residents with units:", residentsWithUnits);
+    return residentsWithUnits;
   } catch (error) {
-    console.error("Error fetching residents:", error)
-    throw new Error(error instanceof Error ? error.message : "Failed to fetch residents")
+    console.error("Error fetching residents:", error);
+    throw new Error(error instanceof Error ? error.message : "Failed to fetch residents");
   }
 }
 
 // Get residents by block (Admin only)
 export async function getResidentsByBlock(block: string) {
-  const { supabase } = await getAuthenticatedUser("admin")
+  const supabase = createServerSupabaseServiceClient()
 
   try {
     // First get all units in the specified block
@@ -173,7 +161,7 @@ export async function getResidentsByBlock(block: string) {
 
 // Get resident by ID (Admin only)
 export async function getResidentById(id: string) {
-  const { supabase } = await getAuthenticatedUser("admin")
+  const supabase = createServerSupabaseServiceClient()
 
   try {
     // Get resident profile
@@ -249,7 +237,7 @@ export async function getResidentById(id: string) {
 
 // Update resident (Admin only)
 export async function updateResident(id: string, formData: FormData) {
-  const { supabase } = await getAuthenticatedUser("admin")
+  const supabase = createServerSupabaseServiceClient()
 
   try {
     // Validate form data
@@ -328,7 +316,7 @@ export async function updateResident(id: string, formData: FormData) {
 
 // Delete resident (Admin only)
 export async function deleteResident(id: string) {
-  const { supabase } = await getAuthenticatedUser("admin")
+  const supabase = createServerSupabaseServiceClient()
 
   try {
     // First deactivate any active residencies
@@ -358,7 +346,7 @@ export async function deleteResident(id: string) {
 
 // Get resident statistics (Admin only)
 export async function getResidentStats() {
-  const { supabase } = await getAuthenticatedUser("admin")
+  const supabase = createServerSupabaseServiceClient()
 
   try {
     // Get total residents
