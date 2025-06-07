@@ -231,14 +231,14 @@ export async function getResidentById(id: string) {
       units: residency?.units || null,
       residency: residency
         ? {
-            id: residency.id,
-            residency_type: residency.residency_type,
-            is_primary_resident: residency.is_primary_resident,
-            start_date: residency.start_date,
-            end_date: residency.end_date,
-            monthly_rent: residency.monthly_rent,
-            lease_end_date: residency.lease_end_date,
-          }
+          id: residency.id,
+          residency_type: residency.residency_type,
+          is_primary_resident: residency.is_primary_resident,
+          start_date: residency.start_date,
+          end_date: residency.end_date,
+          monthly_rent: residency.monthly_rent,
+          lease_end_date: residency.lease_end_date,
+        }
         : null,
     }
   } catch (error) {

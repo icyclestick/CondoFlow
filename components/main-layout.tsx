@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import type React from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import type React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Building,
   Calendar,
@@ -18,9 +18,9 @@ import {
   UserPlus,
   Users,
   Wrench,
-} from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +28,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -40,15 +40,15 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 
 interface MainLayoutProps {
-  children: React.ReactNode
-  userRole: "admin" | "resident"
+  children: React.ReactNode;
+  userRole: "admin" | "resident";
 }
 
 export function MainLayout({ children, userRole }: MainLayoutProps) {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   const adminNavItems = [
     { href: "/admin", label: "Dashboard", icon: Home },
@@ -61,7 +61,7 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
     { href: "/admin/complaints", label: "Complaints", icon: MessageSquare },
     { href: "/admin/payments", label: "Payments", icon: CreditCard },
     { href: "/admin/settings", label: "Settings", icon: Settings },
-  ]
+  ];
 
   const residentNavItems = [
     { href: "/resident", label: "Dashboard", icon: Home },
@@ -73,13 +73,13 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
     { href: "/resident/complaints", label: "Complaints", icon: MessageSquare },
     { href: "/resident/payments", label: "Payments", icon: CreditCard },
     { href: "/resident/profile", label: "My Profile", icon: User },
-  ]
+  ];
 
-  const navItems = userRole === "admin" ? adminNavItems : residentNavItems
+  const navItems = userRole === "admin" ? adminNavItems : residentNavItems;
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen w-full">
         <Sidebar>
           <SidebarHeader>
             <div className="flex items-center gap-2 px-4 py-2">
@@ -91,7 +91,11 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === item.href}
+                    tooltip={item.label}
+                  >
                     <Link href={item.href}>
                       <item.icon className="h-5 w-5" />
                       <span>{item.label}</span>
@@ -105,14 +109,26 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
             <div className="px-3 py-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-start gap-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2"
+                  >
                     <Avatar className="h-6 w-6">
-                      <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
-                      <AvatarFallback>{userRole === "admin" ? "AD" : "RS"}</AvatarFallback>
+                      <AvatarImage
+                        src="/placeholder.svg?height=32&width=32"
+                        alt="User"
+                      />
+                      <AvatarFallback>
+                        {userRole === "admin" ? "AD" : "RS"}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col items-start text-sm">
-                      <span className="font-medium">{userRole === "admin" ? "Admin User" : "John Resident"}</span>
-                      <span className="text-xs text-muted-foreground capitalize">{userRole}</span>
+                      <span className="font-medium">
+                        {userRole === "admin" ? "Admin User" : "John Resident"}
+                      </span>
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {userRole}
+                      </span>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
@@ -150,8 +166,13 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="rounded-full">
                     <Avatar>
-                      <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
-                      <AvatarFallback>{userRole === "admin" ? "AD" : "JR"}</AvatarFallback>
+                      <AvatarImage
+                        src="/placeholder.svg?height=32&width=32"
+                        alt="User"
+                      />
+                      <AvatarFallback>
+                        {userRole === "admin" ? "AD" : "JR"}
+                      </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -179,5 +200,5 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
         </div>
       </div>
     </SidebarProvider>
-  )
+  );
 }
