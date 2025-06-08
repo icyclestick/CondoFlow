@@ -14,6 +14,12 @@ export default function UnitsPage() {
   const [selectedBlock, setSelectedBlock] = useState("")
   const [selectedStatus, setSelectedStatus] = useState("")
 
+  const fetchUnits = async () => {
+    try {
+      setIsLoading(true)
+    }
+  }
+
   return (
     <MainLayout userRole="admin">
       <div className="space-y-6">

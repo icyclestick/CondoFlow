@@ -1,110 +1,129 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import { Download, Plus, Search, Users, UserCheck, UserX } from "lucide-react"
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Download,
+  Plus,
+  Search,
+  Users,
+  UserCheck,
+  UserX,
+  Home,
+  Building,
+} from "lucide-react";
 
-import { MainLayout } from "@/components/main-layout"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useToast } from "@/hooks/use-toast"
-import { getAllResidents, getResidentsByBlock, getResidentStats, deleteResident } from "@/lib/actions/residents"
+import { MainLayout } from "@/components/main-layout";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import {
+  getAllResidents,
+  getResidentsByBlock,
+  getResidentStats,
+  deleteResident,
+} from "@/lib/actions/residents";
 
-// Type definitions
+// Enhanced type definitions
 interface Unit {
-  id: string
-  block: string
-  unit_number: string
-  status: string
+  id: string;
+  block: string;
+  unit_number: string;
+  status: string;
 }
 
 interface Resident {
-  id: string
-  full_name: string
-  email: string
-  phone: string | null
-  role: string
-  created_at: string
-  move_in_date: string | null
-  avatar_url: string | null
-  units: Unit | null // This needs to match what getAllResidents returns
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  created_at: string;
+  move_in_date: string | null;
+  avatar_url: string | null;
+  units: Unit | null;
+  residency_type: string | null;
+  total_residing_units: number;
+  total_owned_units: number;
 }
 
 interface ResidentStats {
-  totalResidents: number
-  activeResidents: number
-  inactiveResidents: number
-  blockCounts: Record<string, number>
+  totalResidents: number;
+  activeResidents: number;
+  inactiveResidents: number;
+  blockCounts: Record<string, number>;
 }
 
 export default function ResidentsPage() {
   // State management
-  const [residents, setResidents] = useState<Resident[]>([])
-  const [filteredResidents, setFilteredResidents] = useState<Resident[]>([])
-  const [stats, setStats] = useState<ResidentStats | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isStatsLoading, setIsStatsLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedBlock, setSelectedBlock] = useState("")
-  const [selectedStatus, setSelectedStatus] = useState("")
-  const [activeTab, setActiveTab] = useState("all")
+  const [residents, setResidents] = useState<Resident[]>([]);
+  const [filteredResidents, setFilteredResidents] = useState<Resident[]>([]);
+  const [stats, setStats] = useState<ResidentStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedBlock, setSelectedBlock] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
 
-  const { toast } = useToast()
+  const { toast } = useToast();
 
   // Fetch residents data
   const fetchResidents = async () => {
     try {
-      setIsLoading(true)
-      let data: Resident[]
+      setIsLoading(true);
+      let data: Resident[];
 
       if (selectedBlock) {
-        data = await getResidentsByBlock(selectedBlock)
+        data = await getResidentsByBlock(selectedBlock);
       } else {
-        data = await getAllResidents()
+        data = await getAllResidents();
       }
 
-      setResidents(data)
+      setResidents(data);
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to fetch residents",
+        description:
+          error instanceof Error ? error.message : "Failed to fetch residents",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Fetch statistics
   const fetchStats = async () => {
     try {
-      setIsStatsLoading(true)
-      const statsData = await getResidentStats()
-      setStats(statsData)
+      setIsStatsLoading(true);
+      const statsData = await getResidentStats();
+      setStats(statsData);
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to fetch statistics",
+        description:
+          error instanceof Error ? error.message : "Failed to fetch statistics",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsStatsLoading(false)
+      setIsStatsLoading(false);
     }
-  }
+  };
 
   // Initial data fetch
   useEffect(() => {
-    fetchResidents()
-    fetchStats()
-  }, [selectedBlock])
+    fetchResidents();
+    fetchStats();
+  }, [selectedBlock]);
 
   // Filter residents based on search and filters
   useEffect(() => {
-    let filtered = residents
+    let filtered = residents;
 
     // Search filter
     if (searchTerm) {
@@ -113,64 +132,75 @@ export default function ResidentsPage() {
           resident.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           resident.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (resident.units &&
-            `${resident.units.block}${resident.units.unit_number}`.toLowerCase().includes(searchTerm.toLowerCase())),
-      )
+            `${resident.units.block}${resident.units.unit_number}`
+              .toLowerCase()
+              .includes(searchTerm.toLowerCase()))
+      );
     }
 
-    // Status filter (you can customize this logic)
+    // Status filter
     if (selectedStatus === "active") {
-      // Filter active residents (those with recent activity)
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-      filtered = filtered.filter((resident) => new Date(resident.created_at) > thirtyDaysAgo)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      filtered = filtered.filter(
+        (resident) => new Date(resident.created_at) > thirtyDaysAgo
+      );
     } else if (selectedStatus === "inactive") {
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-      filtered = filtered.filter((resident) => new Date(resident.created_at) <= thirtyDaysAgo)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      filtered = filtered.filter(
+        (resident) => new Date(resident.created_at) <= thirtyDaysAgo
+      );
     }
 
     // Tab filter
     if (activeTab === "owners") {
-      // You can add logic to distinguish owners vs tenants
-      // For now, we'll show all residents
-      filtered = filtered
+      filtered = filtered.filter((resident) => resident.total_owned_units > 0);
     } else if (activeTab === "tenants") {
-      // Similar logic for tenants
-      filtered = filtered
+      filtered = filtered.filter(
+        (resident) => resident.residency_type === "tenant"
+      );
     }
 
-    setFilteredResidents(filtered)
-  }, [residents, searchTerm, selectedStatus, activeTab])
+    setFilteredResidents(filtered);
+  }, [residents, searchTerm, selectedStatus, activeTab]);
 
   // Handle resident deletion
-  const handleDeleteResident = async (residentId: string, residentName: string) => {
-    if (!confirm(`Are you sure you want to delete ${residentName}? This action cannot be undone.`)) {
-      return
+  const handleDeleteResident = async (
+    residentId: string,
+    residentName: string
+  ) => {
+    if (
+      !confirm(
+        `Are you sure you want to delete ${residentName}? This action cannot be undone.`
+      )
+    ) {
+      return;
     }
 
     try {
-      await deleteResident(residentId)
+      await deleteResident(residentId);
       toast({
         title: "Success",
         description: `${residentName} has been deleted successfully`,
-      })
-      // Refresh data
-      fetchResidents()
-      fetchStats()
+      });
+      fetchResidents();
+      fetchStats();
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete resident",
+        description:
+          error instanceof Error ? error.message : "Failed to delete resident",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   // Format date helper
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return "N/A"
-    return new Date(dateString).toLocaleDateString()
-  }
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString();
+  };
 
   // Get initials for avatar
   const getInitials = (name: string) => {
@@ -178,8 +208,24 @@ export default function ResidentsPage() {
       .split(" ")
       .map((n) => n[0])
       .join("")
-      .toUpperCase()
-  }
+      .toUpperCase();
+  };
+
+  // Get residency type badge
+  const getResidencyBadge = (resident: Resident) => {
+    if (
+      resident.total_owned_units > 0 &&
+      resident.residency_type === "owner-occupied"
+    ) {
+      return <Badge variant="default">Owner</Badge>;
+    } else if (resident.residency_type === "tenant") {
+      return <Badge variant="secondary">Tenant</Badge>;
+    } else if (resident.residency_type === "family-member") {
+      return <Badge variant="outline">Family</Badge>;
+    } else {
+      return <Badge variant="outline">Resident</Badge>;
+    }
+  };
 
   return (
     <MainLayout userRole="admin">
@@ -188,7 +234,9 @@ export default function ResidentsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Residents</h1>
-            <p className="text-muted-foreground">Manage residents and their information</p>
+            <p className="text-muted-foreground">
+              Manage residents and their information
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button asChild>
@@ -208,12 +256,18 @@ export default function ResidentsPage() {
         <div className="grid gap-6 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Residents</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Total Residents
+              </CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{isStatsLoading ? "..." : stats?.totalResidents || 0}</div>
-              <p className="text-xs text-muted-foreground">Registered in system</p>
+              <div className="text-2xl font-bold">
+                {isStatsLoading ? "..." : stats?.totalResidents || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Registered in system
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -222,8 +276,12 @@ export default function ResidentsPage() {
               <UserCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{isStatsLoading ? "..." : stats?.activeResidents || 0}</div>
-              <p className="text-xs text-muted-foreground">Active in last 30 days</p>
+              <div className="text-2xl font-bold">
+                {isStatsLoading ? "..." : stats?.activeResidents || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Active in last 30 days
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -232,31 +290,39 @@ export default function ResidentsPage() {
               <UserX className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{isStatsLoading ? "..." : stats?.inactiveResidents || 0}</div>
-              <p className="text-xs text-muted-foreground">No recent activity</p>
+              <div className="text-2xl font-bold">
+                {isStatsLoading ? "..." : stats?.inactiveResidents || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                No recent activity
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Most Populated Block</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Most Populated Block
+              </CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
                 {isStatsLoading
                   ? "..."
-                  : stats?.blockCounts && Object.keys(stats.blockCounts).length > 0
-                    ? Object.entries(stats.blockCounts).reduce((a, b) =>
-                        stats.blockCounts[a[0]] > stats.blockCounts[b[0]] ? a : b,
-                      )[0]
-                    : "N/A"}
+                  : stats?.blockCounts &&
+                    Object.keys(stats.blockCounts).length > 0
+                  ? Object.entries(stats.blockCounts).reduce((a, b) =>
+                      stats.blockCounts[a[0]] > stats.blockCounts[b[0]] ? a : b
+                    )[0]
+                  : "N/A"}
               </div>
               <p className="text-xs text-muted-foreground">
                 {isStatsLoading
                   ? "..."
-                  : stats?.blockCounts && Object.keys(stats.blockCounts).length > 0
-                    ? Math.max(...Object.values(stats.blockCounts)) + " residents"
-                    : "No data"}
+                  : stats?.blockCounts &&
+                    Object.keys(stats.blockCounts).length > 0
+                  ? Math.max(...Object.values(stats.blockCounts)) + " residents"
+                  : "No data"}
               </p>
             </CardContent>
           </Card>
@@ -300,15 +366,22 @@ export default function ResidentsPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="all">All Residents</TabsTrigger>
-            <TabsTrigger value="owners">Owners</TabsTrigger>
-            <TabsTrigger value="tenants">Tenants</TabsTrigger>
+            <TabsTrigger value="owners">
+              Owners ({residents.filter((r) => r.total_owned_units > 0).length})
+            </TabsTrigger>
+            <TabsTrigger value="tenants">
+              Tenants (
+              {residents.filter((r) => r.residency_type === "tenant").length})
+            </TabsTrigger>
           </TabsList>
           <TabsContent value={activeTab} className="space-y-4">
             <Card>
               <CardContent className="p-0">
                 {isLoading ? (
                   <div className="flex items-center justify-center p-8">
-                    <div className="text-muted-foreground">Loading residents...</div>
+                    <div className="text-muted-foreground">
+                      Loading residents...
+                    </div>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -316,17 +389,21 @@ export default function ResidentsPage() {
                       <thead>
                         <tr className="border-b text-left text-sm font-medium text-muted-foreground">
                           <th className="p-4">Name</th>
-                          <th className="p-4">Unit</th>
+                          <th className="p-4">Primary Unit</th>
+                          <th className="p-4">Type</th>
+                          <th className="p-4">Units</th>
                           <th className="p-4">Contact</th>
                           <th className="p-4">Move-in Date</th>
-                          <th className="p-4">Status</th>
                           <th className="p-4">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredResidents.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                            <td
+                              colSpan={7}
+                              className="p-8 text-center text-muted-foreground"
+                            >
                               No residents found
                             </td>
                           </tr>
@@ -336,12 +413,20 @@ export default function ResidentsPage() {
                               <td className="p-4">
                                 <div className="flex items-center gap-3">
                                   <Avatar>
-                                    <AvatarImage src={resident.avatar_url || undefined} />
-                                    <AvatarFallback>{getInitials(resident.full_name)}</AvatarFallback>
+                                    <AvatarImage
+                                      src={resident.avatar_url || undefined}
+                                    />
+                                    <AvatarFallback>
+                                      {getInitials(resident.full_name)}
+                                    </AvatarFallback>
                                   </Avatar>
                                   <div>
-                                    <p className="font-medium">{resident.full_name}</p>
-                                    <p className="text-sm text-muted-foreground">{resident.email}</p>
+                                    <p className="font-medium">
+                                      {resident.full_name}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {resident.email}
+                                    </p>
                                   </div>
                                 </div>
                               </td>
@@ -351,27 +436,70 @@ export default function ResidentsPage() {
                                   : "No unit assigned"}
                               </td>
                               <td className="p-4">
-                                <div>
-                                  <p className="text-sm">{resident.email}</p>
-                                  {resident.phone && <p className="text-sm text-muted-foreground">{resident.phone}</p>}
+                                {getResidencyBadge(resident)}
+                              </td>
+                              <td className="p-4">
+                                <div className="flex items-center gap-2 text-sm">
+                                  {resident.total_residing_units > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <Home className="h-3 w-3" />
+                                      <span>
+                                        {resident.total_residing_units}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {resident.total_owned_units > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <Building className="h-3 w-3" />
+                                      <span>{resident.total_owned_units}</span>
+                                    </div>
+                                  )}
+                                  {resident.total_residing_units === 0 &&
+                                    resident.total_owned_units === 0 && (
+                                      <span className="text-muted-foreground">
+                                        None
+                                      </span>
+                                    )}
                                 </div>
                               </td>
-                              <td className="p-4">{formatDate(resident.move_in_date)}</td>
                               <td className="p-4">
-                                <Badge variant="default">Active</Badge>
+                                <div>
+                                  <p className="text-sm">{resident.email}</p>
+                                  {resident.phone && (
+                                    <p className="text-sm text-muted-foreground">
+                                      {resident.phone}
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                {formatDate(resident.move_in_date)}
                               </td>
                               <td className="p-4">
                                 <div className="flex space-x-2">
                                   <Button size="sm" variant="outline" asChild>
-                                    <Link href={`/admin/residents/${resident.id}`}>View</Link>
+                                    <Link
+                                      href={`/admin/residents/${resident.id}`}
+                                    >
+                                      View
+                                    </Link>
                                   </Button>
                                   <Button size="sm" variant="outline" asChild>
-                                    <Link href={`/admin/residents/${resident.id}/edit`}>Edit</Link>
+                                    <Link
+                                      href={`/admin/residents/${resident.id}/edit`}
+                                    >
+                                      Edit
+                                    </Link>
                                   </Button>
                                   <Button
                                     size="sm"
                                     variant="destructive"
-                                    onClick={() => handleDeleteResident(resident.id, resident.full_name)}
+                                    onClick={() =>
+                                      handleDeleteResident(
+                                        resident.id,
+                                        resident.full_name
+                                      )
+                                    }
                                   >
                                     Delete
                                   </Button>
@@ -390,5 +518,5 @@ export default function ResidentsPage() {
         </Tabs>
       </div>
     </MainLayout>
-  )
+  );
 }

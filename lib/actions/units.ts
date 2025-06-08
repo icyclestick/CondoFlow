@@ -1,26 +1,9 @@
 "use server"
 
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createServerSupabaseServiceClient } from "../supabase/service-client"
 
 export async function getUnits() {
-  const supabase = await createServerSupabaseClient()
-
-  // Check if the current user is an admin
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-
-  if (authError || !user) {
-    throw new Error("Unauthorized")
-  }
-
-  // Verify admin role
-  const { data: adminProfile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
-
-  if (adminProfile?.role !== "admin") {
-    throw new Error("Only administrators can access unit data")
-  }
+  const supabase = createServerSupabaseServiceClient()
 
   // Fetch all units
   const { data: units, error } = await supabase
@@ -37,7 +20,7 @@ export async function getUnits() {
 }
 
 export async function getVacantUnits() {
-  const supabase = await createServerSupabaseClient()
+  const supabase = createServerSupabaseServiceClient()
 
   const { data: units, error } = await supabase
     .from("units")
