@@ -79,9 +79,15 @@ export default function ResidentsPage() {
       let data: Resident[];
 
       if (selectedBlock) {
-        data = await getResidentsByBlock(selectedBlock);
+        data = (await getResidentsByBlock(selectedBlock)).map((resident) => ({
+          ...resident,
+          units: resident.units ? resident.units[0] : null, // Take the first unit or set to null
+        }));
       } else {
-        data = await getAllResidents();
+        data = (await getAllResidents()).map((resident) => ({
+          ...resident,
+          units: resident.units ? resident.units[0] : null, // Take the first unit or set to null
+        }));
       }
 
       setResidents(data);

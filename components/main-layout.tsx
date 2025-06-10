@@ -17,6 +17,7 @@ import {
   User,
   UserPlus,
   Users,
+  UserRoundCog,
   Wrench,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -53,6 +54,7 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
   const adminNavItems = [
     { href: "/admin", label: "Dashboard", icon: Home },
     { href: "/admin/residents", label: "Residents", icon: Users },
+    { href: "/admin/ownership", label: "Ownerships", icon: UserRoundCog },
     { href: "/admin/units", label: "Units", icon: Building },
     { href: "/admin/amenities", label: "Amenities", icon: Calendar },
     { href: "/admin/move-requests", label: "Move Requests", icon: Truck },

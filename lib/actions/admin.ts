@@ -1,34 +1,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { createServerSupabaseServiceClient } from "@/lib/supabase/service-client"
+import { createServerSupabaseServiceClient } from "../supabase/service-client"
 
 export async function createResidentAccount(formData: FormData) {
-  // 1. Use anon client for session/user checks
-  const userClient = await createServerSupabaseClient()
-  const {
-    data: { user },
-    error: authError,
-  } = await userClient.auth.getUser()
-
-  if (authError || !user) {
-    throw new Error("Unauthorized")
-  }
-
-  // Verify admin role
-  const { data: adminProfile } = await userClient
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single()
-
-  if (adminProfile?.role !== "admin") {
-    throw new Error("Only administrators can create resident accounts")
-  }
-
-  // 2. Use service role client for admin actions
-  const supabase = createServerSupabaseServiceClient()
+  const supabase = createServerSupabaseServiceClient();
 
   // Extract form data
   const email = formData.get("email") as string
@@ -57,13 +33,16 @@ export async function createResidentAccount(formData: FormData) {
 
   // Update the profile with additional information
   if (authData.user) {
+    // Determine profile type based on residency type
+    const profileType = residencyType === "owner-occupied" ? "both" : "resident"
+
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
         full_name: fullName,
         phone,
         role: "resident",
-        profile_type: "resident",
+        profile_type: profileType,
         move_in_date: moveInDate,
       })
       .eq("id", authData.user.id)
@@ -87,11 +66,28 @@ export async function createResidentAccount(formData: FormData) {
         throw new Error(`Failed to create unit residency: ${residencyError.message}`)
       }
 
+      // ✅ FIXED: If residency type is "owner-occupied", also create ownership record
+      if (residencyType === "owner-occupied") {
+        const { error: ownershipError } = await supabase.from("unit_ownership").insert({
+          unit_id: unitId,
+          owner_id: authData.user.id,
+          ownership_percentage: 100.0,
+          ownership_type: "primary",
+          start_date: moveInDate,
+          is_active: true,
+        })
+
+        if (ownershipError) {
+          throw new Error(`Failed to create unit ownership: ${ownershipError.message}`)
+        }
+      }
+
       // Update unit status to occupied
       await supabase.from("units").update({ status: "occupied" }).eq("id", unitId)
     }
   }
 
   revalidatePath("/admin/residents")
+  revalidatePath("/admin/ownership")
   return { success: true }
 }
