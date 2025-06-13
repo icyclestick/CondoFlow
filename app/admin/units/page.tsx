@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search } from "lucide-react";
-import { getUnits } from "@/lib/actions/units";
+import { getUnits, getUnitsByBlock, searchUnits } from "@/lib/actions/units";
 
 interface ResidentProfile {
   id: string;
@@ -50,23 +50,43 @@ export default function UnitsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("all");
 
   const fetchUnits = async () => {
     try {
       setIsLoading(true);
       setError(null);
+      let data;
 
-      const data = await getUnits();
+      if (searchTerm) {
+        data = await searchUnits(searchTerm);
+      } else if (selectedBlock) {
+        data = await getUnitsByBlock(selectedBlock);
+      } else {
+        data = await getUnits();
+      }
+
       const formattedData = data.map((unit: any) => ({
         ...unit,
         unit_residency: unit.unit_residency?.map((residency: any) => ({
           ...residency,
-          profiles: residency.profiles[0], // Ensure profiles is a single object
+          profiles: Array.isArray(residency.profiles)
+            ? residency.profiles[0]
+            : residency.profiles ?? null,
         })),
       }));
-      setUnits(formattedData);
-      console.log("Fetched Units:", formattedData);
+
+      // Apply status filter if selected
+      if (selectedStatus) {
+        const filteredData = formattedData.filter(
+          (unit) => unit.status.toLowerCase() === selectedStatus.toLowerCase()
+        );
+        setUnits(filteredData);
+      } else {
+        setUnits(formattedData);
+      }
     } catch (error) {
+      console.log("Error fetching units:", error);
       setError(
         error instanceof Error ? error.message : "Failed to fetch units"
       );
@@ -75,10 +95,37 @@ export default function UnitsPage() {
     }
   };
 
+  // Debounce search term changes
   useEffect(() => {
-    fetchUnits();
-    // No need to call fetchUnits in cleanup
-  }, []);
+    const timer = setTimeout(() => {
+      fetchUnits();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, selectedBlock, selectedStatus]);
+
+  // Update tab content based on active tab
+  useEffect(() => {
+    if (activeTab === "occupied") {
+      setSelectedStatus("occupied");
+    } else if (activeTab === "vacant") {
+      setSelectedStatus("vacant");
+    } else {
+      setSelectedStatus("");
+    }
+  }, [activeTab]);
+
+  // Calculate statistics
+  const totalUnits = units.length;
+  const occupiedUnits = units.filter(
+    (unit) => unit.status.toLowerCase() === "occupied"
+  ).length;
+  const vacantUnits = units.filter(
+    (unit) => unit.status.toLowerCase() === "vacant"
+  ).length;
+  const monthlyRevenue = units
+    .filter((unit) => unit.status.toLowerCase() === "occupied")
+    .reduce((sum, unit) => sum + (unit.monthly_fee || 0), 0);
 
   return (
     <MainLayout userRole="admin">
@@ -104,7 +151,7 @@ export default function UnitsPage() {
               <CardTitle className="text-sm font-medium">Total Units</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">200</div>
+              <div className="text-2xl font-bold">{totalUnits}</div>
               <p className="text-xs text-muted-foreground">Across 4 blocks</p>
             </CardContent>
           </Card>
@@ -113,9 +160,12 @@ export default function UnitsPage() {
               <CardTitle className="text-sm font-medium">Occupied</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">178</div>
+              <div className="text-2xl font-bold">{occupiedUnits}</div>
               <p className="text-xs text-muted-foreground">
-                89% occupancy rate
+                {totalUnits > 0
+                  ? Math.round((occupiedUnits / totalUnits) * 100)
+                  : 0}
+                % occupancy rate
               </p>
             </CardContent>
           </Card>
@@ -124,7 +174,7 @@ export default function UnitsPage() {
               <CardTitle className="text-sm font-medium">Vacant</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">22</div>
+              <div className="text-2xl font-bold">{vacantUnits}</div>
               <p className="text-xs text-muted-foreground">
                 Available for rent
               </p>
@@ -137,7 +187,9 @@ export default function UnitsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$62,300</div>
+              <div className="text-2xl font-bold">
+                ${monthlyRevenue.toLocaleString()}
+              </div>
               <p className="text-xs text-muted-foreground">
                 From occupied units
               </p>
@@ -178,7 +230,7 @@ export default function UnitsPage() {
           </select>
         </div>
 
-        <Tabs defaultValue="all">
+        <Tabs defaultValue="all" onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="all">All Units</TabsTrigger>
             <TabsTrigger value="occupied">Occupied</TabsTrigger>
@@ -302,6 +354,101 @@ export default function UnitsPage() {
                 </p>
               </CardContent>
             </Card>
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm font-medium text-muted-foreground">
+                        <th className="p-4">Unit</th>
+                        <th className="p-4">Block</th>
+                        <th className="p-4">Resident</th>
+                        <th className="p-4">Monthly Fee</th>
+                        <th className="p-4">Move-in Date</th>
+                        <th className="p-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {isLoading ? (
+                        <tr>
+                          <td colSpan={6} className="p-4 text-center">
+                            Loading
+                          </td>
+                        </tr>
+                      ) : error ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="p-4 text-center text-red-500"
+                          >
+                            {error}
+                          </td>
+                        </tr>
+                      ) : units.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-4 text-center">
+                            No occupied units found
+                          </td>
+                        </tr>
+                      ) : (
+                        units
+                          .filter(
+                            (unit) => unit.status.toLowerCase() === "occupied"
+                          )
+                          .map((unit, i) => (
+                            <tr key={i} className="border-b">
+                              <td className="p-4 font-medium">
+                                {unit.unit_number}
+                              </td>
+                              <td className="p-4">{unit.block}</td>
+                              <td className="p-4">
+                                {unit.unit_residency &&
+                                unit.unit_residency.length > 0 ? (
+                                  unit.unit_residency
+                                    .filter((r) => r.is_active && r.profiles)
+                                    .map((r) => r.profiles.full_name)
+                                    .join(", ")
+                                ) : (
+                                  <span className="text-muted-foreground">
+                                    No residents
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-4 font-medium">
+                                {unit.monthly_fee
+                                  ? `$${unit.monthly_fee}`
+                                  : "-"}
+                              </td>
+                              <td className="p-4">
+                                {unit.unit_residency &&
+                                unit.unit_residency.length > 0 ? (
+                                  new Date(
+                                    unit.unit_residency[0].start_date
+                                  ).toLocaleDateString()
+                                ) : (
+                                  <span className="text-muted-foreground">
+                                    -
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-4">
+                                <div className="flex space-x-2">
+                                  <Button size="sm" variant="outline">
+                                    View
+                                  </Button>
+                                  <Button size="sm" variant="outline">
+                                    Edit
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
           <TabsContent value="vacant" className="space-y-4">
             <Card>
@@ -315,6 +462,75 @@ export default function UnitsPage() {
                 <p className="text-muted-foreground">
                   Filter will show only vacant units...
                 </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm font-medium text-muted-foreground">
+                        <th className="p-4">Unit</th>
+                        <th className="p-4">Block</th>
+                        <th className="p-4">Monthly Fee</th>
+                        <th className="p-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {isLoading ? (
+                        <tr>
+                          <td colSpan={4} className="p-4 text-center">
+                            Loading
+                          </td>
+                        </tr>
+                      ) : error ? (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="p-4 text-center text-red-500"
+                          >
+                            {error}
+                          </td>
+                        </tr>
+                      ) : units.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="p-4 text-center">
+                            No vacant units found
+                          </td>
+                        </tr>
+                      ) : (
+                        units
+                          .filter(
+                            (unit) => unit.status.toLowerCase() === "vacant"
+                          )
+                          .map((unit, i) => (
+                            <tr key={i} className="border-b">
+                              <td className="p-4 font-medium">
+                                {unit.unit_number}
+                              </td>
+                              <td className="p-4">{unit.block}</td>
+                              <td className="p-4 font-medium">
+                                {unit.monthly_fee
+                                  ? `$${unit.monthly_fee}`
+                                  : "-"}
+                              </td>
+                              <td className="p-4">
+                                <div className="flex space-x-2">
+                                  <Button size="sm" variant="outline">
+                                    View
+                                  </Button>
+                                  <Button size="sm" variant="outline">
+                                    Edit
+                                  </Button>
+                                  <Button size="sm">Assign</Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
