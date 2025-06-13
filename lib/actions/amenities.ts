@@ -1,19 +1,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { createServerSupabaseServiceClient } from "@/lib/supabase/service-client"
 
 export async function createAmenityBooking(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-
-  // Get current user
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-  if (authError || !user) {
-    throw new Error("Unauthorized")
-  }
+  const supabase = createServerSupabaseServiceClient()
 
   const amenityId = formData.get("amenity") as string
   const bookingDate = formData.get("date") as string
@@ -38,7 +29,6 @@ export async function createAmenityBooking(formData: FormData) {
   const { data, error } = await supabase
     .from("amenity_bookings")
     .insert({
-      user_id: user.id,
       amenity_id: amenityId,
       booking_date: bookingDate,
       time_slot: timeSlot,
@@ -57,7 +47,7 @@ export async function createAmenityBooking(formData: FormData) {
 }
 
 export async function getAmenityBookings(userId?: string) {
-  const supabase = await createServerSupabaseClient()
+  const supabase = createServerSupabaseServiceClient()
 
   let query = supabase
     .from("amenity_bookings")
@@ -82,12 +72,99 @@ export async function getAmenityBookings(userId?: string) {
 }
 
 export async function approveAmenityBooking(bookingId: string) {
-  const supabase = await createServerSupabaseClient()
+  const supabase = createServerSupabaseServiceClient()
 
   const { error } = await supabase.from("amenity_bookings").update({ status: "approved" }).eq("id", bookingId)
 
   if (error) {
     throw new Error(`Failed to approve booking: ${error.message}`)
+  }
+
+  revalidatePath("/admin/amenities")
+  return { success: true }
+}
+
+export async function getAllAmenities() {
+  const supabase = createServerSupabaseServiceClient()
+
+  const { data, error } = await supabase.from("amenities").select("*").order("name")
+
+  if (error) {
+    throw new Error(`Failed to fetch amenities: ${error.message}`)
+  }
+
+  return data || []
+}
+
+export async function getAmenityStats() {
+  const supabase = createServerSupabaseServiceClient()
+
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+
+  // Get total bookings this month
+  const { count: totalBookings } = await supabase
+    .from("amenity_bookings")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", startOfMonth.toISOString())
+
+  // Get pending bookings
+  const { count: pendingBookings } = await supabase
+    .from("amenity_bookings")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "pending")
+
+  // Get most popular amenity
+  const { data: bookingData } = await supabase
+    .from("amenity_bookings")
+    .select(`
+      amenities (name)
+    `)
+    .gte("created_at", startOfMonth.toISOString())
+
+  const amenityCounts: Record<string, number> = {}
+  bookingData?.forEach((booking: any) => {
+    const name = booking.amenities?.name
+    if (name) {
+      amenityCounts[name] = (amenityCounts[name] || 0) + 1
+    }
+  })
+
+  const mostPopular = Object.entries(amenityCounts).reduce(
+    (a, b) => (amenityCounts[a[0]] > amenityCounts[b[0]] ? a : b),
+    ["N/A", 0],
+  )
+
+  // Calculate revenue
+  const { data: revenueData } = await supabase
+    .from("amenity_bookings")
+    .select(`
+      amenities (hourly_rate)
+    `)
+    .eq("status", "approved")
+    .gte("created_at", startOfMonth.toISOString())
+
+  const totalRevenue =
+    revenueData?.reduce((sum, booking: any) => {
+      return sum + (booking.amenities?.hourly_rate || 0)
+    }, 0) || 0
+
+  return {
+    totalBookings: totalBookings || 0,
+    pendingBookings: pendingBookings || 0,
+    mostPopularAmenity: mostPopular[0],
+    totalRevenue,
+  }
+}
+
+export async function rejectAmenityBooking(bookingId: string) {
+  const supabase = createServerSupabaseServiceClient()
+
+  const { error } = await supabase.from("amenity_bookings").update({ status: "rejected" }).eq("id", bookingId)
+
+  if (error) {
+    throw new Error(`Failed to reject booking: ${error.message}`)
   }
 
   revalidatePath("/admin/amenities")

@@ -1,50 +1,157 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { MainLayout } from "@/components/main-layout"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Search, Calendar, Users, Clock } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { useEffect, useState } from "react";
+import { MainLayout } from "@/components/main-layout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Search, Calendar, Users, Clock } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  getAmenityBookings,
+  getAllAmenities,
+  getAmenityStats,
+  approveAmenityBooking,
+  rejectAmenityBooking,
+} from "@/lib/actions/amenities";
+
+interface AmenityBooking {
+  id: string;
+  booking_date: string;
+  time_slot: string;
+  guests: number;
+  status: string;
+  created_at: string;
+  amenities: {
+    name: string;
+  };
+  profiles: {
+    full_name: string;
+  };
+}
+
+interface Amenity {
+  id: string;
+  name: string;
+  description: string | null;
+  capacity: number;
+  hourly_rate: number;
+  is_active: boolean;
+}
+
+interface AmenityStats {
+  totalBookings: number;
+  pendingBookings: number;
+  mostPopularAmenity: string;
+  totalRevenue: number;
+}
 
 export default function AdminAmenitiesPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedStatus, setSelectedStatus] = useState("")
-  const { toast } = useToast()
+  const [bookings, setBookings] = useState<AmenityBooking[]>([]);
+  const [amenities, setAmenities] = useState<Amenity[]>([]);
+  const [stats, setStats] = useState<AmenityStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const [bookingsData, amenitiesData, statsData] = await Promise.all([
+        getAmenityBookings(),
+        getAllAmenities(),
+        getAmenityStats(),
+      ]);
+
+      setBookings(bookingsData);
+      setAmenities(amenitiesData);
+      setStats(statsData);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to fetch data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleApprove = async (bookingId: string) => {
     try {
-      // await approveAmenityBooking(bookingId)
+      await approveAmenityBooking(bookingId);
       toast({
         title: "Booking Approved",
         description: "The amenity booking has been approved successfully.",
-      })
+      });
+      fetchData();
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to approve booking.",
+        description:
+          error instanceof Error ? error.message : "Failed to approve booking.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const handleReject = async (bookingId: string) => {
     try {
-      // await rejectAmenityBooking(bookingId)
+      await rejectAmenityBooking(bookingId);
       toast({
         title: "Booking Rejected",
         description: "The amenity booking has been rejected.",
-      })
+      });
+      fetchData();
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to reject booking.",
+        description:
+          error instanceof Error ? error.message : "Failed to reject booking.",
         variant: "destructive",
-      })
+      });
     }
+  };
+
+  const filteredBookings = bookings.filter((booking) => {
+    const matchesSearch =
+      !searchTerm ||
+      booking.profiles.full_name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      booking.amenities.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus = !selectedStatus || booking.status === selectedStatus;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  if (isLoading) {
+    return (
+      <MainLayout userRole="admin">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-muted-foreground">Loading amenities data...</div>
+        </div>
+      </MainLayout>
+    );
   }
 
   return (
@@ -52,8 +159,12 @@ export default function AdminAmenitiesPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Amenity Management</h1>
-            <p className="text-muted-foreground">Manage amenity bookings and availability</p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Amenity Management
+            </h1>
+            <p className="text-muted-foreground">
+              Manage amenity bookings and availability
+            </p>
           </div>
           <Button>
             <Plus className="mr-2 h-4 w-4" />
@@ -64,32 +175,44 @@ export default function AdminAmenitiesPage() {
         <div className="grid gap-6 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Total Bookings
+              </CardTitle>
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">156</div>
+              <div className="text-2xl font-bold">
+                {stats?.totalBookings || 0}
+              </div>
               <p className="text-xs text-muted-foreground">This month</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Pending Approvals
+              </CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">18</div>
+              <div className="text-2xl font-bold">
+                {stats?.pendingBookings || 0}
+              </div>
               <p className="text-xs text-muted-foreground">Awaiting review</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Most Popular</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Most Popular
+              </CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">Pool</div>
-              <p className="text-xs text-muted-foreground">45 bookings this month</p>
+              <div className="text-2xl font-bold">
+                {stats?.mostPopularAmenity || "N/A"}
+              </div>
+              <p className="text-xs text-muted-foreground">Most booked</p>
             </CardContent>
           </Card>
           <Card>
@@ -98,7 +221,9 @@ export default function AdminAmenitiesPage() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$2,340</div>
+              <div className="text-2xl font-bold">
+                ${stats?.totalRevenue || 0}
+              </div>
               <p className="text-xs text-muted-foreground">From bookings</p>
             </CardContent>
           </Card>
@@ -138,7 +263,9 @@ export default function AdminAmenitiesPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Amenity Bookings</CardTitle>
-                <CardDescription>Manage and approve amenity booking requests</CardDescription>
+                <CardDescription>
+                  Manage and approve amenity booking requests
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -155,82 +282,69 @@ export default function AdminAmenitiesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        {
-                          id: "1",
-                          resident: "John Doe",
-                          amenity: "Swimming Pool",
-                          date: "May 15, 2025",
-                          time: "2:00 PM - 4:00 PM",
-                          guests: 2,
-                          status: "Pending",
-                        },
-                        {
-                          id: "2",
-                          resident: "Jane Smith",
-                          amenity: "Function Hall",
-                          date: "May 20, 2025",
-                          time: "6:00 PM - 10:00 PM",
-                          guests: 25,
-                          status: "Pending",
-                        },
-                        {
-                          id: "3",
-                          resident: "Robert Johnson",
-                          amenity: "Tennis Court",
-                          date: "May 18, 2025",
-                          time: "10:00 AM - 12:00 PM",
-                          guests: 4,
-                          status: "Approved",
-                        },
-                        {
-                          id: "4",
-                          resident: "Emily Davis",
-                          amenity: "BBQ Area",
-                          date: "May 22, 2025",
-                          time: "4:00 PM - 8:00 PM",
-                          guests: 8,
-                          status: "Pending",
-                        },
-                      ].map((booking, i) => (
-                        <tr key={i} className="border-b">
-                          <td className="py-3">{booking.resident}</td>
-                          <td className="py-3">{booking.amenity}</td>
-                          <td className="py-3">{booking.date}</td>
-                          <td className="py-3">{booking.time}</td>
-                          <td className="py-3">{booking.guests}</td>
-                          <td className="py-3">
-                            <Badge
-                              variant={
-                                booking.status === "Approved"
-                                  ? "default"
-                                  : booking.status === "Pending"
-                                    ? "outline"
-                                    : "secondary"
-                              }
-                            >
-                              {booking.status}
-                            </Badge>
-                          </td>
-                          <td className="py-3">
-                            <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                View
-                              </Button>
-                              {booking.status === "Pending" && (
-                                <>
-                                  <Button size="sm" onClick={() => handleApprove(booking.id)}>
-                                    Approve
-                                  </Button>
-                                  <Button size="sm" variant="destructive" onClick={() => handleReject(booking.id)}>
-                                    Reject
-                                  </Button>
-                                </>
-                              )}
-                            </div>
+                      {filteredBookings.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            className="py-8 text-center text-muted-foreground"
+                          >
+                            No bookings found
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredBookings.map((booking) => (
+                          <tr key={booking.id} className="border-b">
+                            <td className="py-3">
+                              {booking.profiles.full_name}
+                            </td>
+                            <td className="py-3">{booking.amenities.name}</td>
+                            <td className="py-3">
+                              {formatDate(booking.booking_date)}
+                            </td>
+                            <td className="py-3">{booking.time_slot}</td>
+                            <td className="py-3">{booking.guests}</td>
+                            <td className="py-3">
+                              <Badge
+                                variant={
+                                  booking.status === "approved"
+                                    ? "default"
+                                    : booking.status === "pending"
+                                    ? "outline"
+                                    : booking.status === "completed"
+                                    ? "secondary"
+                                    : "destructive"
+                                }
+                              >
+                                {booking.status}
+                              </Badge>
+                            </td>
+                            <td className="py-3">
+                              <div className="flex space-x-2">
+                                <Button size="sm" variant="outline">
+                                  View
+                                </Button>
+                                {booking.status === "pending" && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleApprove(booking.id)}
+                                    >
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleReject(booking.id)}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -241,23 +355,22 @@ export default function AdminAmenitiesPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Available Amenities</CardTitle>
-                <CardDescription>Manage amenity details and availability</CardDescription>
+                <CardDescription>
+                  Manage amenity details and availability
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {[
-                    { name: "Swimming Pool", capacity: 20, rate: "$15/hour", status: "Available" },
-                    { name: "Function Hall", capacity: 50, rate: "$50/hour", status: "Available" },
-                    { name: "Tennis Court", capacity: 4, rate: "$20/hour", status: "Maintenance" },
-                    { name: "Gym", capacity: 15, rate: "$10/hour", status: "Available" },
-                    { name: "BBQ Area", capacity: 12, rate: "$25/hour", status: "Available" },
-                    { name: "Kids Playground", capacity: 20, rate: "Free", status: "Available" },
-                  ].map((amenity, i) => (
-                    <Card key={i}>
+                  {amenities.map((amenity) => (
+                    <Card key={amenity.id}>
                       <CardHeader>
-                        <CardTitle className="text-lg">{amenity.name}</CardTitle>
-                        <Badge variant={amenity.status === "Available" ? "default" : "secondary"}>
-                          {amenity.status}
+                        <CardTitle className="text-lg">
+                          {amenity.name}
+                        </CardTitle>
+                        <Badge
+                          variant={amenity.is_active ? "default" : "secondary"}
+                        >
+                          {amenity.is_active ? "Available" : "Inactive"}
                         </Badge>
                       </CardHeader>
                       <CardContent>
@@ -266,8 +379,13 @@ export default function AdminAmenitiesPage() {
                             <strong>Capacity:</strong> {amenity.capacity} people
                           </p>
                           <p className="text-sm">
-                            <strong>Rate:</strong> {amenity.rate}
+                            <strong>Rate:</strong> ${amenity.hourly_rate}/hour
                           </p>
+                          {amenity.description && (
+                            <p className="text-sm text-muted-foreground">
+                              {amenity.description}
+                            </p>
+                          )}
                         </div>
                         <div className="mt-4 flex space-x-2">
                           <Button size="sm" variant="outline">
@@ -288,13 +406,18 @@ export default function AdminAmenitiesPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Booking Schedule</CardTitle>
-                <CardDescription>View amenity booking schedule and availability</CardDescription>
+                <CardDescription>
+                  View amenity booking schedule and availability
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground">Calendar view would be implemented here</p>
+                  <p className="text-muted-foreground">
+                    Calendar view would be implemented here
+                  </p>
                   <p className="text-sm text-muted-foreground mt-2">
-                    This would show a calendar with all bookings and available time slots
+                    This would show a calendar with all bookings and available
+                    time slots
                   </p>
                 </div>
               </CardContent>
@@ -303,5 +426,5 @@ export default function AdminAmenitiesPage() {
         </Tabs>
       </div>
     </MainLayout>
-  )
+  );
 }

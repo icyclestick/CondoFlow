@@ -1,49 +1,160 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { MainLayout } from "@/components/main-layout"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Wrench, Clock, User, AlertTriangle } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { useEffect, useState } from "react";
+import { MainLayout } from "@/components/main-layout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search, Wrench, Clock, User, AlertTriangle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  getAllServiceRequests,
+  getServiceStats,
+  assignServiceRequest,
+  updateServiceRequestStatus,
+} from "@/lib/actions/admin-services";
+
+interface ServiceRequest {
+  id: string;
+  service_type: string;
+  description: string;
+  urgency: string;
+  status: string;
+  preferred_schedule: string | null;
+  assigned_to: string | null;
+  created_at: string;
+  updated_at: string;
+  profiles: {
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string | null;
+  };
+}
+
+interface ServiceStats {
+  totalRequests: number;
+  pendingRequests: number;
+  inProgressRequests: number;
+  emergencyRequests: number;
+}
 
 export default function AdminServicesPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedStatus, setSelectedStatus] = useState("")
-  const [selectedUrgency, setSelectedUrgency] = useState("")
-  const { toast } = useToast()
+  const [requests, setRequests] = useState<ServiceRequest[]>([]);
+  const [stats, setStats] = useState<ServiceStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedUrgency, setSelectedUrgency] = useState("");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const [requestsData, statsData] = await Promise.all([
+        getAllServiceRequests(),
+        getServiceStats(),
+      ]);
+
+      setRequests(
+        requestsData.map((request: any) => ({
+          ...request,
+          profiles: request.profiles[0], // Assuming the first profile is the relevant one
+        }))
+      );
+      setStats(statsData);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to fetch data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAssign = async (requestId: string, technician: string) => {
     try {
+      await assignServiceRequest(requestId, technician);
       toast({
         title: "Technician Assigned",
         description: `Service request has been assigned to ${technician}.`,
-      })
+      });
+      fetchData();
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to assign technician.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to assign technician.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const handleMarkResolved = async (requestId: string) => {
     try {
+      await updateServiceRequestStatus(requestId, "completed");
       toast({
         title: "Request Resolved",
         description: "The service request has been marked as resolved.",
-      })
+      });
+      fetchData();
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to mark request as resolved.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to mark request as resolved.",
         variant: "destructive",
-      })
+      });
     }
+  };
+
+  const filteredRequests = requests.filter((request) => {
+    const matchesSearch =
+      !searchTerm ||
+      request.profiles.full_name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      request.service_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus = !selectedStatus || request.status === selectedStatus;
+    const matchesUrgency =
+      !selectedUrgency || request.urgency === selectedUrgency;
+
+    return matchesSearch && matchesStatus && matchesUrgency;
+  });
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  if (isLoading) {
+    return (
+      <MainLayout userRole="admin">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-muted-foreground">Loading services data...</div>
+        </div>
+      </MainLayout>
+    );
   }
 
   return (
@@ -51,19 +162,27 @@ export default function AdminServicesPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Service Management</h1>
-            <p className="text-muted-foreground">Manage maintenance and service requests</p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Service Management
+            </h1>
+            <p className="text-muted-foreground">
+              Manage maintenance and service requests
+            </p>
           </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Total Requests
+              </CardTitle>
               <Wrench className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">67</div>
+              <div className="text-2xl font-bold">
+                {stats?.totalRequests || 0}
+              </div>
               <p className="text-xs text-muted-foreground">This month</p>
             </CardContent>
           </Card>
@@ -73,8 +192,12 @@ export default function AdminServicesPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">15</div>
-              <p className="text-xs text-muted-foreground">Awaiting assignment</p>
+              <div className="text-2xl font-bold">
+                {stats?.pendingRequests || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Awaiting assignment
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -83,7 +206,9 @@ export default function AdminServicesPage() {
               <User className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">23</div>
+              <div className="text-2xl font-bold">
+                {stats?.inProgressRequests || 0}
+              </div>
               <p className="text-xs text-muted-foreground">Being worked on</p>
             </CardContent>
           </Card>
@@ -93,8 +218,12 @@ export default function AdminServicesPage() {
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">3</div>
-              <p className="text-xs text-muted-foreground">Urgent attention needed</p>
+              <div className="text-2xl font-bold">
+                {stats?.emergencyRequests || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Urgent attention needed
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -144,7 +273,9 @@ export default function AdminServicesPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Service Requests</CardTitle>
-                <CardDescription>All maintenance and service requests</CardDescription>
+                <CardDescription>
+                  All maintenance and service requests
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -162,106 +293,94 @@ export default function AdminServicesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        {
-                          id: "SR-2025-001",
-                          resident: "John Doe",
-                          serviceType: "Plumbing",
-                          date: "May 8, 2025",
-                          urgency: "High",
-                          status: "In Progress",
-                          assignedTo: "Mike Johnson",
-                        },
-                        {
-                          id: "SR-2025-002",
-                          resident: "Jane Smith",
-                          serviceType: "HVAC",
-                          date: "May 5, 2025",
-                          urgency: "Medium",
-                          status: "Completed",
-                          assignedTo: "Sarah Wilson",
-                        },
-                        {
-                          id: "SR-2025-003",
-                          resident: "Robert Johnson",
-                          serviceType: "Electrical",
-                          date: "May 1, 2025",
-                          urgency: "Low",
-                          status: "Pending",
-                          assignedTo: "-",
-                        },
-                        {
-                          id: "SR-2025-004",
-                          resident: "Emily Davis",
-                          serviceType: "Plumbing",
-                          date: "May 10, 2025",
-                          urgency: "Emergency",
-                          status: "Assigned",
-                          assignedTo: "Mike Johnson",
-                        },
-                        {
-                          id: "SR-2025-005",
-                          resident: "Michael Brown",
-                          serviceType: "Appliance Repair",
-                          date: "May 7, 2025",
-                          urgency: "Medium",
-                          status: "In Progress",
-                          assignedTo: "David Lee",
-                        },
-                      ].map((request, i) => (
-                        <tr key={i} className="border-b">
-                          <td className="py-3 font-medium">{request.id}</td>
-                          <td className="py-3">{request.resident}</td>
-                          <td className="py-3">{request.serviceType}</td>
-                          <td className="py-3">{request.date}</td>
-                          <td className="py-3">
-                            <Badge
-                              variant={
-                                request.urgency === "Emergency"
-                                  ? "destructive"
-                                  : request.urgency === "High"
-                                    ? "destructive"
-                                    : request.urgency === "Medium"
-                                      ? "default"
-                                      : "secondary"
-                              }
-                            >
-                              {request.urgency}
-                            </Badge>
-                          </td>
-                          <td className="py-3">
-                            <Badge
-                              variant={
-                                request.status === "Completed"
-                                  ? "default"
-                                  : request.status === "In Progress"
-                                    ? "secondary"
-                                    : "outline"
-                              }
-                            >
-                              {request.status}
-                            </Badge>
-                          </td>
-                          <td className="py-3">{request.assignedTo}</td>
-                          <td className="py-3">
-                            <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                View
-                              </Button>
-                              {request.status === "Pending" && (
-                                <Button size="sm" onClick={() => handleAssign(request.id, "Available Technician")}>
-                                  Assign
-                                </Button>
-                              )}
-                              {request.status === "In Progress" && (
-                                <Button size="sm" onClick={() => handleMarkResolved(request.id)}>
-                                  Mark Resolved
-                                </Button>
-                              )}
-                            </div>
+                      {filteredRequests.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={8}
+                            className="py-8 text-center text-muted-foreground"
+                          >
+                            No service requests found
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredRequests.map((request) => (
+                          <tr key={request.id} className="border-b">
+                            <td className="py-3 font-medium">
+                              {request.id.slice(0, 8)}
+                            </td>
+                            <td className="py-3">
+                              {request.profiles.full_name}
+                            </td>
+                            <td className="py-3">{request.service_type}</td>
+                            <td className="py-3">
+                              {formatDate(request.created_at)}
+                            </td>
+                            <td className="py-3">
+                              <Badge
+                                variant={
+                                  request.urgency === "emergency"
+                                    ? "destructive"
+                                    : request.urgency === "high"
+                                    ? "destructive"
+                                    : request.urgency === "medium"
+                                    ? "default"
+                                    : "secondary"
+                                }
+                              >
+                                {request.urgency}
+                              </Badge>
+                            </td>
+                            <td className="py-3">
+                              <Badge
+                                variant={
+                                  request.status === "completed"
+                                    ? "default"
+                                    : request.status === "in-progress" ||
+                                      request.status === "assigned"
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                              >
+                                {request.status}
+                              </Badge>
+                            </td>
+                            <td className="py-3">
+                              {request.assigned_to || "-"}
+                            </td>
+                            <td className="py-3">
+                              <div className="flex space-x-2">
+                                <Button size="sm" variant="outline">
+                                  View
+                                </Button>
+                                {request.status === "pending" && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() =>
+                                      handleAssign(
+                                        request.id,
+                                        "Available Technician"
+                                      )
+                                    }
+                                  >
+                                    Assign
+                                  </Button>
+                                )}
+                                {(request.status === "in-progress" ||
+                                  request.status === "assigned") && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() =>
+                                      handleMarkResolved(request.id)
+                                    }
+                                  >
+                                    Mark Resolved
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -272,10 +391,65 @@ export default function AdminServicesPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Pending Requests</CardTitle>
-                <CardDescription>Service requests awaiting assignment</CardDescription>
+                <CardDescription>
+                  Service requests awaiting assignment
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Filter will show only pending requests...</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm font-medium text-muted-foreground">
+                        <th className="pb-2">Resident</th>
+                        <th className="pb-2">Service Type</th>
+                        <th className="pb-2">Urgency</th>
+                        <th className="pb-2">Description</th>
+                        <th className="pb-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRequests
+                        .filter((r) => r.status === "pending")
+                        .map((request) => (
+                          <tr key={request.id} className="border-b">
+                            <td className="py-3">
+                              {request.profiles.full_name}
+                            </td>
+                            <td className="py-3">{request.service_type}</td>
+                            <td className="py-3">
+                              <Badge
+                                variant={
+                                  request.urgency === "emergency"
+                                    ? "destructive"
+                                    : request.urgency === "high"
+                                    ? "destructive"
+                                    : "default"
+                                }
+                              >
+                                {request.urgency}
+                              </Badge>
+                            </td>
+                            <td className="py-3 max-w-xs truncate">
+                              {request.description}
+                            </td>
+                            <td className="py-3">
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  handleAssign(
+                                    request.id,
+                                    "Available Technician"
+                                  )
+                                }
+                              >
+                                Assign
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -283,15 +457,71 @@ export default function AdminServicesPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Emergency Requests</CardTitle>
-                <CardDescription>Urgent service requests requiring immediate attention</CardDescription>
+                <CardDescription>
+                  Urgent service requests requiring immediate attention
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Filter will show only emergency requests...</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm font-medium text-muted-foreground">
+                        <th className="pb-2">Resident</th>
+                        <th className="pb-2">Service Type</th>
+                        <th className="pb-2">Description</th>
+                        <th className="pb-2">Status</th>
+                        <th className="pb-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRequests
+                        .filter((r) => r.urgency === "emergency")
+                        .map((request) => (
+                          <tr key={request.id} className="border-b">
+                            <td className="py-3">
+                              {request.profiles.full_name}
+                            </td>
+                            <td className="py-3">{request.service_type}</td>
+                            <td className="py-3 max-w-xs truncate">
+                              {request.description}
+                            </td>
+                            <td className="py-3">
+                              <Badge variant="destructive">
+                                {request.status}
+                              </Badge>
+                            </td>
+                            <td className="py-3">
+                              {request.status === "pending" ? (
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    handleAssign(
+                                      request.id,
+                                      "Emergency Technician"
+                                    )
+                                  }
+                                >
+                                  Assign Now
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleMarkResolved(request.id)}
+                                >
+                                  Mark Resolved
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
     </MainLayout>
-  )
+  );
 }

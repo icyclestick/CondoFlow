@@ -1,11 +1,35 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { createServerSupabaseServiceClient } from "../supabase/service-client"
+import { revalidatePath } from "next/cache"
+
+// Authentication & Authorization Helper
+async function getAuthenticatedUser(requiredRole?: "admin" | "resident") {
+  const supabase = await createServerSupabaseClient()
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) {
+    throw new Error("Unauthorized")
+  }
+
+  if (requiredRole) {
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+
+    if (profile?.role !== requiredRole) {
+      throw new Error(`Access denied. ${requiredRole} role required.`)
+    }
+  }
+
+  return { user, supabase: createServerSupabaseServiceClient() } // ✅ Use service client for admin operations
+}
 
 // Get all residents with their unit relationships (Admin only)
 export async function getAllResidentsWithUnits() {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     console.log("Fetching residents from profiles...")
@@ -110,7 +134,7 @@ export async function getAllResidentsWithUnits() {
 
 // Get all unit owners (Admin only)
 export async function getAllUnitOwners() {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     const { data: owners, error } = await supabase
@@ -155,7 +179,7 @@ export async function getAllUnitOwners() {
 
 // Get unit details with all owners and residents (Admin only)
 export async function getUnitWithDetails(unitId: string) {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     // Get unit basic info
@@ -234,7 +258,7 @@ export async function getUnitWithDetails(unitId: string) {
 
 // Add unit ownership (Admin only)
 export async function addUnitOwnership(formData: FormData) {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     const unitId = formData.get("unitId") as string
@@ -288,7 +312,7 @@ export async function addUnitOwnership(formData: FormData) {
 
 // ✅ NEW: Edit unit ownership (Admin only)
 export async function editUnitOwnership(ownershipId: string, formData: FormData) {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     const ownershipPercentage = Number(formData.get("ownershipPercentage")) || 100
@@ -350,7 +374,7 @@ export async function editUnitOwnership(ownershipId: string, formData: FormData)
 
 // ✅ NEW: Transfer unit ownership (Admin only)
 export async function transferUnitOwnership(formData: FormData) {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     const ownershipId = formData.get("ownershipId") as string
@@ -461,7 +485,7 @@ export async function transferUnitOwnership(formData: FormData) {
 
 // Add unit residency (Admin only)
 export async function addUnitResidency(formData: FormData) {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     const unitId = formData.get("unitId") as string
@@ -505,7 +529,7 @@ export async function addUnitResidency(formData: FormData) {
 
 // ✅ NEW: Edit unit residency (Admin only)
 export async function editUnitResidency(residencyId: string, formData: FormData) {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     const residencyType = (formData.get("residencyType") as string) || "tenant"
@@ -545,7 +569,7 @@ export async function editUnitResidency(residencyId: string, formData: FormData)
 
 // ✅ NEW: Edit resident profile (Admin only)
 export async function editResidentProfile(residentId: string, formData: FormData) {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     const fullName = formData.get("fullName") as string
@@ -592,7 +616,7 @@ export async function editResidentProfile(residentId: string, formData: FormData
 
 // Get ownership statistics (Admin only)
 export async function getOwnershipStats() {
-  const supabase = createServerSupabaseServiceClient();
+  const { supabase } = await getAuthenticatedUser("admin")
 
   try {
     // Get total number of owned units

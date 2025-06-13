@@ -62,13 +62,7 @@ export default function OwnershipPage() {
     try {
       setIsLoading(true);
       const data = await getAllUnitOwners();
-      setOwnerships(
-        data.map((item: any) => ({
-          ...item,
-          profiles: item.profiles[0], // Assuming the first profile is the relevant one
-          units: item.units && item.units.length > 0 ? item.units[0] : null, // Assuming the first unit is the relevant one
-        }))
-      );
+      setOwnerships(data);
     } catch (error) {
       toast({
         title: "Error",
@@ -122,9 +116,7 @@ export default function OwnershipPage() {
 
   // Group ownerships by unit for co-ownership detection
   const ownershipsByUnit = filteredOwnerships.reduce((acc, ownership) => {
-    const unitKey = ownership.units
-      ? `${ownership.units.block}-${ownership.units.unit_number}`
-      : "unknown-unit";
+    const unitKey = `${ownership.units.block}-${ownership.units.unit_number}`;
     if (!acc[unitKey]) {
       acc[unitKey] = [];
     }
@@ -309,16 +301,8 @@ export default function OwnershipPage() {
                             return (
                               <tr key={ownership.id} className="border-b">
                                 <td className="p-4 font-medium">
-                                  {ownership.units ? (
-                                    <>
-                                      Block {ownership.units.block}, #
-                                      {ownership.units.unit_number}
-                                    </>
-                                  ) : (
-                                    <span className="text-muted-foreground">
-                                      No unit info
-                                    </span>
-                                  )}
+                                  Block {ownership.units.block}, #
+                                  {ownership.units.unit_number}
                                 </td>
                                 <td className="p-4">
                                   <div className="flex flex-col">

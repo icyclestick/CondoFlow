@@ -1,138 +1,247 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { MainLayout } from "@/components/main-layout"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Separator } from "@/components/ui/separator"
-import { Plus, Minus } from "lucide-react"
-import { addUnitOwnership, addUnitResidency } from "@/lib/actions/improved-residents"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { MainLayout } from "@/components/main-layout";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Plus, Minus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  addUnitOwnership,
+  addUnitResidency,
+} from "@/lib/actions/improved-residents";
+import { getUnits } from "@/lib/actions/units";
+import { UnitSelector } from "@/components/unit-selector";
+
+interface Unit {
+  id: string;
+  block: string;
+  unit_number: string;
+  status: string;
+  monthly_fee?: number;
+}
 
 interface CoOwner {
-  id: string
-  name: string
-  email: string
-  percentage: number
+  id: string;
+  name: string;
+  email: string;
+  percentage: number;
 }
 
 export default function CreateOwnershipPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [ownershipType, setOwnershipType] = useState<"single" | "co-owned">("single")
-  const [willLiveInUnit, setWillLiveInUnit] = useState(false)
+  const [isLoading, setIsLoading] = useState(false);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [isLoadingUnits, setIsLoadingUnits] = useState(true);
+  const [selectedUnitId, setSelectedUnitId] = useState<string>("");
+  const [ownershipType, setOwnershipType] = useState<"single" | "co-owned">(
+    "single"
+  );
+  const [willLiveInUnit, setWillLiveInUnit] = useState(false);
   const [coOwners, setCoOwners] = useState<CoOwner[]>([
     { id: "1", name: "", email: "", percentage: 50 },
     { id: "2", name: "", email: "", percentage: 50 },
-  ])
-  const router = useRouter()
+  ]);
+  const { toast } = useToast();
+  const router = useRouter();
+
+  // Fetch units on component mount
+  useEffect(() => {
+    async function fetchUnits() {
+      try {
+        const unitsData = await getUnits();
+        setUnits(unitsData);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description:
+            error instanceof Error ? error.message : "Failed to fetch units",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingUnits(false);
+      }
+    }
+
+    fetchUnits();
+  }, [toast]);
 
   const addCoOwner = () => {
-    const newId = (coOwners.length + 1).toString()
-    setCoOwners([...coOwners, { id: newId, name: "", email: "", percentage: 0 }])
-  }
+    const newId = (coOwners.length + 1).toString();
+    setCoOwners([
+      ...coOwners,
+      { id: newId, name: "", email: "", percentage: 0 },
+    ]);
+  };
 
   const removeCoOwner = (id: string) => {
     if (coOwners.length > 2) {
-      setCoOwners(coOwners.filter((owner) => owner.id !== id))
+      setCoOwners(coOwners.filter((owner) => owner.id !== id));
     }
-  }
+  };
 
-  const updateCoOwner = (id: string, field: keyof CoOwner, value: string | number) => {
-    setCoOwners(coOwners.map((owner) => (owner.id === id ? { ...owner, [field]: value } : owner)))
-  }
+  const updateCoOwner = (
+    id: string,
+    field: keyof CoOwner,
+    value: string | number
+  ) => {
+    setCoOwners(
+      coOwners.map((owner) =>
+        owner.id === id ? { ...owner, [field]: value } : owner
+      )
+    );
+  };
 
-  const totalPercentage = coOwners.reduce((sum, owner) => sum + owner.percentage, 0)
+  const totalPercentage = coOwners.reduce(
+    (sum, owner) => sum + owner.percentage,
+    0
+  );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+
+    if (!selectedUnitId) {
+      toast({
+        title: "Error",
+        description: "Please select a unit",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      const formData = new FormData(e.currentTarget)
+      const formData = new FormData(e.currentTarget);
+      formData.set("unitId", selectedUnitId);
 
       // Create ownership records
       if (ownershipType === "single") {
-        await addUnitOwnership(formData)
+        await addUnitOwnership(formData);
       } else {
         // Handle co-ownership - create multiple records
         for (const owner of coOwners) {
           if (owner.name && owner.email && owner.percentage > 0) {
-            const coOwnerFormData = new FormData()
-            coOwnerFormData.append("unitId", formData.get("unit") as string)
-            coOwnerFormData.append("ownerId", owner.id) // This would need to be resolved to actual user ID
-            coOwnerFormData.append("ownershipPercentage", owner.percentage.toString())
-            coOwnerFormData.append("ownershipType", owner.id === "1" ? "primary" : "co-owner")
-            coOwnerFormData.append("startDate", formData.get("ownershipStartDate") as string)
+            const coOwnerFormData = new FormData();
+            coOwnerFormData.append("unitId", selectedUnitId);
+            coOwnerFormData.append("ownerId", owner.id); // This would need to be resolved to actual user ID
+            coOwnerFormData.append(
+              "ownershipPercentage",
+              owner.percentage.toString()
+            );
+            coOwnerFormData.append(
+              "ownershipType",
+              owner.id === "1" ? "primary" : "co-owner"
+            );
+            coOwnerFormData.append(
+              "startDate",
+              formData.get("ownershipStartDate") as string
+            );
 
-            await addUnitOwnership(coOwnerFormData)
+            await addUnitOwnership(coOwnerFormData);
           }
         }
       }
 
       // If owner will live in unit, create residency record
       if (willLiveInUnit) {
-        const residencyFormData = new FormData()
-        residencyFormData.append("unitId", formData.get("unit") as string)
-        residencyFormData.append("residentId", formData.get("ownerId") as string)
-        residencyFormData.append("residencyType", "owner-occupied")
+        const residencyFormData = new FormData();
+        residencyFormData.append("unitId", selectedUnitId);
+        residencyFormData.append(
+          "residentId",
+          formData.get("ownerId") as string
+        );
+        residencyFormData.append("residencyType", "owner-occupied");
         residencyFormData.append(
           "startDate",
-          (formData.get("moveInDate") as string) || (formData.get("ownershipStartDate") as string),
-        )
-        residencyFormData.append("isPrimaryResident", "true")
+          (formData.get("moveInDate") as string) ||
+            (formData.get("ownershipStartDate") as string)
+        );
+        residencyFormData.append("isPrimaryResident", "true");
 
-        await addUnitResidency(residencyFormData)
+        await addUnitResidency(residencyFormData);
       }
 
-      router.push("/admin/ownership")
+      toast({
+        title: "Success",
+        description: "Ownership created successfully",
+      });
+      router.push("/admin/ownership");
     } catch (error) {
-      console.error("Error creating ownership:", error)
-      // Handle error (show toast, etc.)
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to create ownership",
+        variant: "destructive",
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <MainLayout userRole="admin">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Create Unit Ownership</h1>
-          <p className="text-muted-foreground">Register new ownership for a unit</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Create Unit Ownership
+          </h1>
+          <p className="text-muted-foreground">
+            Register new ownership for a unit
+          </p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <Card>
             <CardHeader>
               <CardTitle>Ownership Details</CardTitle>
-              <CardDescription>Enter the ownership information for this unit</CardDescription>
+              <CardDescription>
+                Enter the ownership information for this unit
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="unit">Unit</Label>
-                  <Select name="unit" required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select unit" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="a-101">Block A, Unit 101</SelectItem>
-                      <SelectItem value="a-102">Block A, Unit 102</SelectItem>
-                      <SelectItem value="b-201">Block B, Unit 201</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ownershipStartDate">Ownership Start Date</Label>
-                  <Input id="ownershipStartDate" name="ownershipStartDate" type="date" required />
-                  <p className="text-xs text-muted-foreground">When the owner actually purchased/acquired this unit</p>
-                </div>
+              <div className="space-y-4">
+                <Label>Unit Selection</Label>
+                {isLoadingUnits ? (
+                  <div className="flex items-center justify-center p-8 border rounded-lg">
+                    <div className="text-muted-foreground">
+                      Loading units...
+                    </div>
+                  </div>
+                ) : (
+                  <UnitSelector
+                    units={units}
+                    selectedUnitId={selectedUnitId}
+                    onUnitSelect={setSelectedUnitId}
+                    showOnlyVacant={false}
+                    placeholder="Select a unit for ownership"
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ownershipStartDate">Ownership Start Date</Label>
+                <Input
+                  id="ownershipStartDate"
+                  name="ownershipStartDate"
+                  type="date"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  When the owner actually purchased/acquired this unit
+                </p>
               </div>
 
               <div className="space-y-4">
@@ -145,7 +254,11 @@ export default function CreateOwnershipPage() {
                       name="ownershipType"
                       value="single"
                       checked={ownershipType === "single"}
-                      onChange={(e) => setOwnershipType(e.target.value as "single" | "co-owned")}
+                      onChange={(e) =>
+                        setOwnershipType(
+                          e.target.value as "single" | "co-owned"
+                        )
+                      }
                     />
                     <Label htmlFor="single">Single Owner</Label>
                   </div>
@@ -156,7 +269,11 @@ export default function CreateOwnershipPage() {
                       name="ownershipType"
                       value="co-owned"
                       checked={ownershipType === "co-owned"}
-                      onChange={(e) => setOwnershipType(e.target.value as "single" | "co-owned")}
+                      onChange={(e) =>
+                        setOwnershipType(
+                          e.target.value as "single" | "co-owned"
+                        )
+                      }
                     />
                     <Label htmlFor="co-owned">Co-Ownership</Label>
                   </div>
@@ -172,7 +289,12 @@ export default function CreateOwnershipPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="ownerEmail">Owner Email</Label>
-                      <Input id="ownerEmail" name="ownerEmail" type="email" required />
+                      <Input
+                        id="ownerEmail"
+                        name="ownerEmail"
+                        type="email"
+                        required
+                      />
                     </div>
                   </div>
                 </div>
@@ -180,18 +302,31 @@ export default function CreateOwnershipPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label>Co-Owners</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={addCoOwner}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addCoOwner}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       Add Co-Owner
                     </Button>
                   </div>
 
                   {coOwners.map((owner, index) => (
-                    <div key={owner.id} className="border rounded-lg p-4 space-y-4">
+                    <div
+                      key={owner.id}
+                      className="border rounded-lg p-4 space-y-4"
+                    >
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium">Owner {index + 1}</h4>
                         {coOwners.length > 2 && (
-                          <Button type="button" variant="outline" size="sm" onClick={() => removeCoOwner(owner.id)}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removeCoOwner(owner.id)}
+                          >
                             <Minus className="h-4 w-4" />
                           </Button>
                         )}
@@ -201,7 +336,9 @@ export default function CreateOwnershipPage() {
                           <Label>Name</Label>
                           <Input
                             value={owner.name}
-                            onChange={(e) => updateCoOwner(owner.id, "name", e.target.value)}
+                            onChange={(e) =>
+                              updateCoOwner(owner.id, "name", e.target.value)
+                            }
                             required
                           />
                         </div>
@@ -210,7 +347,9 @@ export default function CreateOwnershipPage() {
                           <Input
                             type="email"
                             value={owner.email}
-                            onChange={(e) => updateCoOwner(owner.id, "email", e.target.value)}
+                            onChange={(e) =>
+                              updateCoOwner(owner.id, "email", e.target.value)
+                            }
                             required
                           />
                         </div>
@@ -222,7 +361,11 @@ export default function CreateOwnershipPage() {
                             max="100"
                             value={owner.percentage}
                             onChange={(e) =>
-                              updateCoOwner(owner.id, "percentage", Number.parseFloat(e.target.value) || 0)
+                              updateCoOwner(
+                                owner.id,
+                                "percentage",
+                                Number.parseFloat(e.target.value) || 0
+                              )
                             }
                             required
                           />
@@ -233,11 +376,21 @@ export default function CreateOwnershipPage() {
 
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <span className="font-medium">Total Ownership:</span>
-                    <span className={`font-bold ${totalPercentage === 100 ? "text-green-600" : "text-red-600"}`}>
+                    <span
+                      className={`font-bold ${
+                        totalPercentage === 100
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
                       {totalPercentage}%
                     </span>
                   </div>
-                  {totalPercentage !== 100 && <p className="text-sm text-red-600">Total ownership must equal 100%</p>}
+                  {totalPercentage !== 100 && (
+                    <p className="text-sm text-red-600">
+                      Total ownership must equal 100%
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -249,9 +402,13 @@ export default function CreateOwnershipPage() {
                   <Checkbox
                     id="willLiveInUnit"
                     checked={willLiveInUnit}
-                    onCheckedChange={(checked) => setWillLiveInUnit(checked as boolean)}
+                    onCheckedChange={(checked) =>
+                      setWillLiveInUnit(checked as boolean)
+                    }
                   />
-                  <Label htmlFor="willLiveInUnit">Owner will live in this unit (Owner-Occupied)</Label>
+                  <Label htmlFor="willLiveInUnit">
+                    Owner will live in this unit (Owner-Occupied)
+                  </Label>
                 </div>
 
                 {willLiveInUnit && (
@@ -259,7 +416,8 @@ export default function CreateOwnershipPage() {
                     <Label htmlFor="moveInDate">Move-in Date</Label>
                     <Input id="moveInDate" name="moveInDate" type="date" />
                     <p className="text-xs text-muted-foreground">
-                      When the owner will start living in the unit (can be different from purchase date)
+                      When the owner will start living in the unit (can be
+                      different from purchase date)
                     </p>
                   </div>
                 )}
@@ -267,18 +425,30 @@ export default function CreateOwnershipPage() {
                 {!willLiveInUnit && (
                   <div className="p-3 bg-blue-50 rounded-lg">
                     <p className="text-sm text-blue-800">
-                      <strong>Investment Property:</strong> This unit will be available for rental. You can assign
-                      tenants later from the Units Management page.
+                      <strong>Investment Property:</strong> This unit will be
+                      available for rental. You can assign tenants later from
+                      the Units Management page.
                     </p>
                   </div>
                 )}
               </div>
 
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => router.back()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.back()}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isLoading || (ownershipType === "co-owned" && totalPercentage !== 100)}>
+                <Button
+                  type="submit"
+                  disabled={
+                    isLoading ||
+                    !selectedUnitId ||
+                    (ownershipType === "co-owned" && totalPercentage !== 100)
+                  }
+                >
                   {isLoading ? "Creating..." : "Create Ownership"}
                 </Button>
               </div>
@@ -287,5 +457,5 @@ export default function CreateOwnershipPage() {
         </form>
       </div>
     </MainLayout>
-  )
+  );
 }

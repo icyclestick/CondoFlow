@@ -157,5 +157,5 @@ export async function deleteComplaint(complaintId: string) {
     throw new Error(
       error instanceof Error ? error.message : "Failed to delete complaint"
     );
-  }
+    }
 }
