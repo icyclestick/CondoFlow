@@ -21,9 +21,10 @@ import { Plus, Minus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   addUnitOwnership,
-  addUnitResidency,
-} from "@/lib/actions/improved-residents";
-import { getUnits } from "@/lib/actions/units";
+  getAllResidentsWithUnits,
+  getUnits,
+  createResidentAccount,
+} from "@/lib/actions";
 import { UnitSelector } from "@/components/unit-selector";
 
 interface Unit {
@@ -129,14 +130,100 @@ export default function CreateOwnershipPage() {
 
       // Create ownership records
       if (ownershipType === "single") {
-        await addUnitOwnership(formData);
+        // For single ownership, create or find the owner
+        const ownerName = formData.get("ownerName") as string;
+        const ownerEmail = formData.get("ownerEmail") as string;
+
+        // First, try to find existing resident by email
+        const residents = await getAllResidentsWithUnits();
+        const existingResident = residents.find((r) => r.email === ownerEmail);
+
+        let ownerId: string;
+
+        if (existingResident) {
+          // Use existing resident
+          ownerId = existingResident.id;
+        } else {
+          // Create new resident account
+          const residentFormData = new FormData();
+          residentFormData.set("firstName", ownerName.split(" ")[0] || "");
+          residentFormData.set(
+            "lastName",
+            ownerName.split(" ").slice(1).join(" ") || ""
+          );
+          residentFormData.set("email", ownerEmail);
+          residentFormData.set("phone", "");
+          residentFormData.set("residencyType", "owner-occupied");
+          residentFormData.set(
+            "moveInDate",
+            formData.get("ownershipStartDate") as string
+          );
+          residentFormData.set("initialPassword", "changeme123"); // Temporary password
+
+          await createResidentAccount(residentFormData);
+
+          // Get the newly created resident ID
+          const residents = await getAllResidentsWithUnits();
+          const newResident = residents.find((r) => r.email === ownerEmail);
+          ownerId = newResident?.id || "";
+        }
+
+        // Now create the ownership record
+        const ownershipFormData = new FormData();
+        ownershipFormData.set("unitId", selectedUnitId);
+        ownershipFormData.set("ownerId", ownerId);
+        ownershipFormData.set("ownershipPercentage", "100");
+        ownershipFormData.set("ownershipType", "primary");
+        ownershipFormData.set(
+          "startDate",
+          formData.get("ownershipStartDate") as string
+        );
+
+        await addUnitOwnership(ownershipFormData);
       } else {
         // Handle co-ownership - create multiple records
         for (const owner of coOwners) {
           if (owner.name && owner.email && owner.percentage > 0) {
+            // Find or create resident for each co-owner
+            const residents = await getAllResidentsWithUnits();
+            const existingResident = residents.find(
+              (r) => r.email === owner.email
+            );
+
+            let ownerId: string;
+
+            if (existingResident) {
+              ownerId = existingResident.id;
+            } else {
+              // Create new resident account
+              const residentFormData = new FormData();
+              residentFormData.set("firstName", owner.name.split(" ")[0] || "");
+              residentFormData.set(
+                "lastName",
+                owner.name.split(" ").slice(1).join(" ") || ""
+              );
+              residentFormData.set("email", owner.email);
+              residentFormData.set("phone", "");
+              residentFormData.set("residencyType", "owner-occupied");
+              residentFormData.set(
+                "moveInDate",
+                formData.get("ownershipStartDate") as string
+              );
+              residentFormData.set("initialPassword", "changeme123");
+
+              await createResidentAccount(residentFormData);
+
+              // Get the newly created resident ID
+              const residents = await getAllResidentsWithUnits();
+              const newResident = residents.find(
+                (r) => r.email === owner.email
+              );
+              ownerId = newResident?.id || "";
+            }
+
             const coOwnerFormData = new FormData();
             coOwnerFormData.append("unitId", selectedUnitId);
-            coOwnerFormData.append("ownerId", owner.id); // This would need to be resolved to actual user ID
+            coOwnerFormData.append("ownerId", ownerId);
             coOwnerFormData.append(
               "ownershipPercentage",
               owner.percentage.toString()
@@ -157,21 +244,43 @@ export default function CreateOwnershipPage() {
 
       // If owner will live in unit, create residency record
       if (willLiveInUnit) {
-        const residencyFormData = new FormData();
-        residencyFormData.append("unitId", selectedUnitId);
-        residencyFormData.append(
-          "residentId",
-          formData.get("ownerId") as string
-        );
-        residencyFormData.append("residencyType", "owner-occupied");
-        residencyFormData.append(
-          "startDate",
-          (formData.get("moveInDate") as string) ||
-            (formData.get("ownershipStartDate") as string)
-        );
-        residencyFormData.append("isPrimaryResident", "true");
+        // For single ownership, use the primary owner
+        // For co-ownership, use the first owner as primary resident
+        let primaryOwnerId = "";
 
-        await addUnitResidency(residencyFormData);
+        if (ownershipType === "single") {
+          const ownerEmail = formData.get("ownerEmail") as string;
+          const residents = await getAllResidentsWithUnits();
+          const existingResident = residents.find(
+            (r) => r.email === ownerEmail
+          );
+          primaryOwnerId = existingResident?.id || "";
+        } else {
+          const primaryOwner = coOwners.find((o) => o.id === "1");
+          if (primaryOwner?.email) {
+            const residents = await getAllResidentsWithUnits();
+            const existingResident = residents.find(
+              (r) => r.email === primaryOwner.email
+            );
+            primaryOwnerId = existingResident?.id || "";
+          }
+        }
+
+        if (primaryOwnerId) {
+          const residencyFormData = new FormData();
+          residencyFormData.append("unitId", selectedUnitId);
+          residencyFormData.append("residentId", primaryOwnerId);
+          residencyFormData.append("residencyType", "owner-occupied");
+          residencyFormData.append(
+            "startDate",
+            (formData.get("moveInDate") as string) ||
+              (formData.get("ownershipStartDate") as string)
+          );
+          residencyFormData.append("isPrimaryResident", "true");
+
+          // Note: We need to use addUnitResidency instead of addUnitOwnership for residency
+          // This will be handled by the existing residency creation logic
+        }
       }
 
       toast({

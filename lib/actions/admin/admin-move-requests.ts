@@ -137,3 +137,17 @@ export async function completeMoveRequest(requestId: string) {
     throw new Error(error instanceof Error ? error.message : "Failed to complete move request")
   }
 }
+
+// Alias function for backward compatibility
+export async function updateMoveRequestStatus(requestId: string, status: string, adminNotes?: string) {
+  switch (status) {
+    case "approved":
+      return approveMoveRequest(requestId, adminNotes)
+    case "rejected":
+      return rejectMoveRequest(requestId, adminNotes)
+    case "completed":
+      return completeMoveRequest(requestId)
+    default:
+      throw new Error(`Invalid status: ${status}`)
+  }
+}

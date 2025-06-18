@@ -16,12 +16,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search, Calendar, Users, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  getAmenityBookings,
-  getAllAmenities,
+  getAllAmenityBookings,
   getAmenityStats,
-  approveAmenityBooking,
-  rejectAmenityBooking,
-} from "@/lib/actions/amenities";
+  approveBooking,
+  rejectBooking,
+} from "@/lib/actions";
 
 interface AmenityBooking {
   id: string;
@@ -71,7 +70,7 @@ export default function AdminAmenitiesPage() {
     try {
       setIsLoading(true);
       const [bookingsData, amenitiesData, statsData] = await Promise.all([
-        getAmenityBookings(),
+        getAllAmenityBookings(),
         getAllAmenities(),
         getAmenityStats(),
       ]);
@@ -93,7 +92,7 @@ export default function AdminAmenitiesPage() {
 
   const handleApprove = async (bookingId: string) => {
     try {
-      await approveAmenityBooking(bookingId);
+      await approveBooking(bookingId);
       toast({
         title: "Booking Approved",
         description: "The amenity booking has been approved successfully.",
@@ -111,7 +110,7 @@ export default function AdminAmenitiesPage() {
 
   const handleReject = async (bookingId: string) => {
     try {
-      await rejectAmenityBooking(bookingId);
+      await rejectBooking(bookingId);
       toast({
         title: "Booking Rejected",
         description: "The amenity booking has been rejected.",

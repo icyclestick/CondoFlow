@@ -1,7 +1,7 @@
 "use server"
 
 import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { createServerSupabaseServiceClient } from "../supabase/service-client"
+import { createServerSupabaseServiceClient } from "@/lib/supabase/service-client"
 import { revalidatePath } from "next/cache"
 
 // Authentication & Authorization Helper
@@ -131,6 +131,9 @@ export async function getAllResidentsWithUnits() {
     throw new Error(error instanceof Error ? error.message : "Failed to fetch residents")
   }
 }
+
+// Alias for backward compatibility
+export const getAllResidents = getAllResidentsWithUnits
 
 // Get all unit owners (Admin only)
 export async function getAllUnitOwners() {
@@ -679,5 +682,88 @@ export async function getOwnershipStats() {
   } catch (error) {
     console.error("Error fetching ownership stats:", error)
     throw new Error(error instanceof Error ? error.message : "Failed to fetch ownership statistics")
+  }
+}
+
+// Get resident statistics (Admin only)
+export async function getResidentStats() {
+  const { supabase } = await getAuthenticatedUser("admin")
+
+  try {
+    const { count: totalResidents, error: totalError } = await supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("role", "resident")
+
+    if (totalError) {
+      throw new Error(`Failed to get total residents: ${totalError.message}`)
+    }
+
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const { count: activeResidents, error: activeError } = await supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("role", "resident")
+      .gte("updated_at", thirtyDaysAgo.toISOString())
+
+    if (activeError) {
+      throw new Error(`Failed to get active residents: ${activeError.message}`)
+    }
+
+    const { data: blockData, error: blockError } = await supabase
+      .from("unit_residency")
+      .select(`
+        units:unit_id (
+          block
+        )
+      `)
+      .eq("is_active", true)
+      .not("units", "is", null)
+
+    if (blockError) {
+      throw new Error(`Failed to get block stats: ${blockError.message}`)
+    }
+
+    const { count: totalOwners, error: ownersError } = await supabase
+      .from("unit_ownership")
+      .select("owner_id", { count: "exact", head: true })
+      .eq("is_active", true)
+
+    if (ownersError) {
+      console.error("Error fetching owner count:", ownersError)
+    }
+
+    const { data: tenantData, error: tenantError } = await supabase
+      .from("unit_residency")
+      .select("resident_id")
+      .eq("is_active", true)
+      .eq("residency_type", "tenant")
+
+    if (tenantError) {
+      console.error("Error fetching tenant data:", tenantError)
+    }
+
+    const blockCounts =
+      blockData?.reduce((acc: Record<string, number>, residency: any) => {
+        const block = residency.units?.block
+        if (block) {
+          acc[block] = (acc[block] || 0) + 1
+        }
+        return acc
+      }, {}) || {}
+
+    return {
+      totalResidents: totalResidents || 0,
+      activeResidents: activeResidents || 0,
+      inactiveResidents: (totalResidents || 0) - (activeResidents || 0),
+      totalOwners: totalOwners || 0,
+      totalTenants: tenantData?.length || 0,
+      blockCounts,
+    }
+  } catch (error) {
+    console.error("Error fetching resident stats:", error)
+    throw new Error(error instanceof Error ? error.message : "Failed to fetch resident statistics")
   }
 }

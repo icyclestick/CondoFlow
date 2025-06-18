@@ -21,8 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { createResidentAccount } from "@/lib/actions/admin";
-import { getUnits } from "@/lib/actions/units";
+import { createResidentAccount } from "@/lib/actions";
+import { getUnits } from "@/lib/actions";
 import { UnitSelector } from "@/components/unit-selector";
 
 interface Unit {

@@ -11,16 +11,11 @@ export async function getAllPayments() {
             .from("payments")
             .select(`
         *,
-        profiles!payments_resident_id_fkey (
+        profiles!payments_user_id_fkey (
           id,
           full_name,
           email,
           phone
-        ),
-        units!payments_unit_id_fkey (
-          id,
-          block,
-          unit_number
         )
       `)
             .order("created_at", { ascending: false })

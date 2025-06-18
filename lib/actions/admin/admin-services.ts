@@ -41,7 +41,6 @@ export async function getAllServiceRequests() {
         preferred_schedule,
         assigned_to,
         created_at,
-        updated_at,
         profiles (
           id,
           full_name,
@@ -72,7 +71,6 @@ export async function assignServiceRequest(requestId: string, technicianName: st
             .update({
                 assigned_to: technicianName,
                 status: "assigned",
-                updated_at: new Date().toISOString(),
             })
             .eq("id", requestId)
             .select()
@@ -96,7 +94,6 @@ export async function updateServiceRequestStatus(requestId: string, status: stri
     try {
         const updateData: any = {
             status,
-            updated_at: new Date().toISOString(),
         }
 
         if (notes) {
@@ -178,3 +175,6 @@ export async function getServiceStats() {
         throw new Error(error instanceof Error ? error.message : "Failed to fetch service statistics")
     }
 }
+
+// Alias function for backward compatibility
+export const getServiceRequestStats = getServiceStats

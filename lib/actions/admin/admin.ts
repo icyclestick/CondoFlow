@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { createServerSupabaseServiceClient } from "../supabase/service-client"
+import { createServerSupabaseServiceClient } from "@/lib/supabase/service-client"
 
 export async function createResidentAccount(formData: FormData) {
   const supabase = createServerSupabaseServiceClient();

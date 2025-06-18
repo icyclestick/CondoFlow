@@ -35,19 +35,3 @@ export async function updateProfile(formData: FormData) {
   revalidatePath("/resident/profile")
   return { success: true }
 }
-
-export async function changePassword(formData: FormData) {
-  const supabase = await createServerSupabaseClient()
-
-  const newPassword = formData.get("newPassword") as string
-
-  const { error } = await supabase.auth.updateUser({
-    password: newPassword,
-  })
-
-  if (error) {
-    throw new Error(`Failed to change password: ${error.message}`)
-  }
-
-  return { success: true }
-}

@@ -1,60 +1,213 @@
-import Link from "next/link"
-import { ArrowRight, Calendar, DollarSign, MessageSquare, Users } from "lucide-react"
+"use client";
 
-import { MainLayout } from "@/components/main-layout"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  ArrowRight,
+  Calendar,
+  DollarSign,
+  MessageSquare,
+  Users,
+} from "lucide-react";
+
+import { MainLayout } from "@/components/main-layout";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  getResidentStats,
+  getAmenityStats,
+  getMoveRequestStats,
+  getGatepassStats,
+  getComplaintStats,
+  getPaymentStats,
+  getOwnershipStats,
+} from "@/lib/actions";
+
+interface DashboardStats {
+  residents: {
+    totalResidents: number;
+    activeResidents: number;
+    inactiveResidents: number;
+  };
+  payments: {
+    totalRevenue: number;
+    outstandingAmount: number;
+    collectionRate: number;
+    overdueAmount: number;
+    outstandingCount: number;
+    overdueCount: number;
+  };
+  moveRequests: {
+    pendingRequests: number;
+  };
+  complaints: {
+    openComplaints: number;
+  };
+  ownership: {
+    totalOwnedUnits: number;
+    ownerOccupied: number;
+    investmentProperties: number;
+  };
+}
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setIsLoading(true);
+        const [
+          residentStats,
+          amenityStats,
+          moveRequestStats,
+          gatepassStats,
+          complaintStats,
+          paymentStats,
+          ownershipStats,
+        ] = await Promise.all([
+          getResidentStats(),
+          getAmenityStats(),
+          getMoveRequestStats(),
+          getGatepassStats(),
+          getComplaintStats(),
+          getPaymentStats(),
+          getOwnershipStats(),
+        ]);
+
+        setStats({
+          residents: {
+            totalResidents: residentStats.totalResidents,
+            activeResidents: residentStats.activeResidents,
+            inactiveResidents: residentStats.inactiveResidents,
+          },
+          payments: {
+            totalRevenue: paymentStats.totalRevenue,
+            outstandingAmount: paymentStats.outstandingAmount,
+            collectionRate: paymentStats.collectionRate,
+            overdueAmount: paymentStats.overdueAmount,
+            outstandingCount: paymentStats.outstandingCount,
+            overdueCount: paymentStats.overdueCount,
+          },
+          moveRequests: {
+            pendingRequests: moveRequestStats.pendingRequests,
+          },
+          complaints: {
+            openComplaints: complaintStats.openComplaints,
+          },
+          ownership: {
+            totalOwnedUnits: ownershipStats.totalOwnedUnits,
+            ownerOccupied: ownershipStats.ownerOccupied,
+            investmentProperties: ownershipStats.investmentProperties,
+          },
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Failed to fetch dashboard statistics",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [toast]);
+
   return (
     <MainLayout userRole="admin">
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Overview of your condo management system</p>
+          <p className="text-muted-foreground">
+            Overview of your condo management system
+          </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Residents</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Total Residents
+              </CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">142</div>
-              <p className="text-xs text-muted-foreground">+6 from last month</p>
+              <div className="text-2xl font-bold">
+                {isLoading ? "..." : stats?.residents.totalResidents || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isLoading
+                  ? "..."
+                  : `${stats?.residents.activeResidents || 0} active`}
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Revenue This Month</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Revenue This Month
+              </CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$24,563</div>
-              <p className="text-xs text-muted-foreground">+12.5% from last month</p>
+              <div className="text-2xl font-bold">
+                {isLoading
+                  ? "..."
+                  : `$${stats?.payments.totalRevenue.toLocaleString() || 0}`}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isLoading
+                  ? "..."
+                  : `${
+                      stats?.payments.outstandingCount || 0
+                    } outstanding payments`}
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Pending Approvals
+              </CardTitle>
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">18</div>
-              <p className="text-xs text-muted-foreground">Requires your attention</p>
+              <div className="text-2xl font-bold">
+                {isLoading ? "..." : stats?.moveRequests.pendingRequests || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Requires your attention
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Open Complaints</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Open Complaints
+              </CardTitle>
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">7</div>
-              <p className="text-xs text-muted-foreground">-2 from last week</p>
+              <div className="text-2xl font-bold">
+                {isLoading ? "..." : stats?.complaints.openComplaints || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">Needs resolution</p>
             </CardContent>
           </Card>
         </div>
@@ -69,7 +222,13 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Latest Amenity Bookings</CardTitle>
-                <CardDescription>You have 6 pending amenity booking requests</CardDescription>
+                <CardDescription>
+                  {isLoading
+                    ? "Loading..."
+                    : `You have ${
+                        stats?.moveRequests.pendingRequests || 0
+                      } pending amenity booking requests`}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -84,51 +243,25 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        {
-                          resident: "John Doe",
-                          amenity: "Swimming Pool",
-                          date: "May 15, 2025",
-                          status: "Pending",
-                        },
-                        {
-                          resident: "Jane Smith",
-                          amenity: "Gym",
-                          date: "May 16, 2025",
-                          status: "Approved",
-                        },
-                        {
-                          resident: "Robert Johnson",
-                          amenity: "Function Hall",
-                          date: "May 20, 2025",
-                          status: "Pending",
-                        },
-                        {
-                          resident: "Emily Davis",
-                          amenity: "Tennis Court",
-                          date: "May 18, 2025",
-                          status: "Pending",
-                        },
-                      ].map((booking, i) => (
-                        <tr key={i} className="border-b">
-                          <td className="py-3">{booking.resident}</td>
-                          <td className="py-3">{booking.amenity}</td>
-                          <td className="py-3">{booking.date}</td>
-                          <td className="py-3">
-                            <Badge variant={booking.status === "Pending" ? "outline" : "default"}>
-                              {booking.status}
-                            </Badge>
-                          </td>
-                          <td className="py-3">
-                            <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                View
-                              </Button>
-                              {booking.status === "Pending" && <Button size="sm">Approve</Button>}
-                            </div>
+                      {isLoading ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="py-4 text-center text-muted-foreground"
+                          >
+                            Loading...
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="py-4 text-center text-muted-foreground"
+                          >
+                            No recent bookings
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -147,7 +280,13 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Move Requests</CardTitle>
-                <CardDescription>You have 3 pending move requests</CardDescription>
+                <CardDescription>
+                  {isLoading
+                    ? "Loading..."
+                    : `You have ${
+                        stats?.moveRequests.pendingRequests || 0
+                      } pending move requests`}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -163,49 +302,25 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        {
-                          resident: "Michael Brown",
-                          type: "Move-in",
-                          unit: "Block A, #203",
-                          date: "May 25, 2025",
-                          status: "Pending",
-                        },
-                        {
-                          resident: "Sarah Wilson",
-                          type: "Move-out",
-                          unit: "Block B, #512",
-                          date: "May 30, 2025",
-                          status: "Approved",
-                        },
-                        {
-                          resident: "David Lee",
-                          type: "Move-in",
-                          unit: "Block C, #108",
-                          date: "June 2, 2025",
-                          status: "Pending",
-                        },
-                      ].map((request, i) => (
-                        <tr key={i} className="border-b">
-                          <td className="py-3">{request.resident}</td>
-                          <td className="py-3">{request.type}</td>
-                          <td className="py-3">{request.unit}</td>
-                          <td className="py-3">{request.date}</td>
-                          <td className="py-3">
-                            <Badge variant={request.status === "Pending" ? "outline" : "default"}>
-                              {request.status}
-                            </Badge>
-                          </td>
-                          <td className="py-3">
-                            <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                View
-                              </Button>
-                              {request.status === "Pending" && <Button size="sm">Approve</Button>}
-                            </div>
+                      {isLoading ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="py-4 text-center text-muted-foreground"
+                          >
+                            Loading...
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="py-4 text-center text-muted-foreground"
+                          >
+                            No recent move requests
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -224,7 +339,13 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Gatepass Requests</CardTitle>
-                <CardDescription>You have 4 pending gatepass requests</CardDescription>
+                <CardDescription>
+                  {isLoading
+                    ? "Loading..."
+                    : `You have ${
+                        stats?.moveRequests.pendingRequests || 0
+                      } pending gatepass requests`}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -232,58 +353,32 @@ export default function AdminDashboard() {
                     <thead>
                       <tr className="border-b text-left text-sm font-medium text-muted-foreground">
                         <th className="pb-2">Resident</th>
-                        <th className="pb-2">Items</th>
+                        <th className="pb-2">Visitors</th>
                         <th className="pb-2">Date</th>
                         <th className="pb-2">Status</th>
                         <th className="pb-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        {
-                          resident: "Thomas Anderson",
-                          items: "Furniture (3 items)",
-                          date: "May 14, 2025",
-                          status: "Pending",
-                        },
-                        {
-                          resident: "Lisa Chen",
-                          items: "Electronics (2 items)",
-                          date: "May 15, 2025",
-                          status: "Approved",
-                        },
-                        {
-                          resident: "James Wilson",
-                          items: "Appliances (1 item)",
-                          date: "May 16, 2025",
-                          status: "Pending",
-                        },
-                        {
-                          resident: "Maria Garcia",
-                          items: "Furniture (5 items)",
-                          date: "May 17, 2025",
-                          status: "Pending",
-                        },
-                      ].map((request, i) => (
-                        <tr key={i} className="border-b">
-                          <td className="py-3">{request.resident}</td>
-                          <td className="py-3">{request.items}</td>
-                          <td className="py-3">{request.date}</td>
-                          <td className="py-3">
-                            <Badge variant={request.status === "Pending" ? "outline" : "default"}>
-                              {request.status}
-                            </Badge>
-                          </td>
-                          <td className="py-3">
-                            <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                View
-                              </Button>
-                              {request.status === "Pending" && <Button size="sm">Approve</Button>}
-                            </div>
+                      {isLoading ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="py-4 text-center text-muted-foreground"
+                          >
+                            Loading...
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="py-4 text-center text-muted-foreground"
+                          >
+                            No recent gatepass requests
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -304,58 +399,86 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Units Overview</CardTitle>
-              <CardDescription>Current occupancy and unit status</CardDescription>
+              <CardDescription>
+                Current occupancy and unit status
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Total Units</p>
-                    <p className="text-2xl font-bold">200</p>
+                    <p className="text-2xl font-bold">
+                      {isLoading
+                        ? "..."
+                        : stats?.ownership.totalOwnedUnits || 0}
+                    </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">Occupied</p>
-                    <p className="text-2xl font-bold">178</p>
+                    <p className="text-sm font-medium">Owner-Occupied</p>
+                    <p className="text-2xl font-bold">
+                      {isLoading ? "..." : stats?.ownership.ownerOccupied || 0}
+                    </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">Vacant</p>
-                    <p className="text-2xl font-bold">22</p>
+                    <p className="text-sm font-medium">Investment</p>
+                    <p className="text-2xl font-bold">
+                      {isLoading
+                        ? "..."
+                        : stats?.ownership.investmentProperties || 0}
+                    </p>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <p className="font-medium">Block A</p>
-                    <p>48/50 units occupied</p>
+                    <p className="font-medium">North Block</p>
+                    <p>
+                      {isLoading
+                        ? "..."
+                        : `${
+                            stats?.ownership.ownerOccupied || 0
+                          } units occupied`}
+                    </p>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: "96%" }}></div>
+                    <div
+                      className="h-2 rounded-full bg-primary"
+                      style={{
+                        width: isLoading
+                          ? "0%"
+                          : `${
+                              ((stats?.ownership.ownerOccupied || 0) /
+                                (stats?.ownership.totalOwnedUnits || 1)) *
+                              100
+                            }%`,
+                      }}
+                    ></div>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <p className="font-medium">Block B</p>
-                    <p>45/50 units occupied</p>
+                    <p className="font-medium">South Block</p>
+                    <p>
+                      {isLoading
+                        ? "..."
+                        : `${
+                            stats?.ownership.investmentProperties || 0
+                          } units occupied`}
+                    </p>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: "90%" }}></div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <p className="font-medium">Block C</p>
-                    <p>42/50 units occupied</p>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: "84%" }}></div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <p className="font-medium">Block D</p>
-                    <p>43/50 units occupied</p>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: "86%" }}></div>
+                    <div
+                      className="h-2 rounded-full bg-primary"
+                      style={{
+                        width: isLoading
+                          ? "0%"
+                          : `${
+                              ((stats?.ownership.investmentProperties || 0) /
+                                (stats?.ownership.totalOwnedUnits || 1)) *
+                              100
+                            }%`,
+                      }}
+                    ></div>
                   </div>
                 </div>
               </div>
@@ -379,42 +502,81 @@ export default function AdminDashboard() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Total Due</p>
-                    <p className="text-2xl font-bold">$35,200</p>
+                    <p className="text-2xl font-bold">
+                      {isLoading
+                        ? "..."
+                        : `$${(
+                            (stats?.payments?.totalRevenue || 0) +
+                            (stats?.payments?.outstandingAmount || 0)
+                          ).toLocaleString()}`}
+                    </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Collected</p>
-                    <p className="text-2xl font-bold">$28,450</p>
+                    <p className="text-2xl font-bold">
+                      {isLoading
+                        ? "..."
+                        : `$${
+                            stats?.payments.totalRevenue.toLocaleString() || 0
+                          }`}
+                    </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Outstanding</p>
-                    <p className="text-2xl font-bold">$6,750</p>
+                    <p className="text-2xl font-bold">
+                      {isLoading
+                        ? "..."
+                        : `$${
+                            stats?.payments.outstandingAmount.toLocaleString() ||
+                            0
+                          }`}
+                    </p>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <p className="font-medium">Association Dues</p>
-                    <p>$18,200 / $20,000</p>
+                    <p className="font-medium">Collection Rate</p>
+                    <p>
+                      {isLoading
+                        ? "..."
+                        : `${stats?.payments.collectionRate || 0}%`}
+                    </p>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: "91%" }}></div>
+                    <div
+                      className="h-2 rounded-full bg-primary"
+                      style={{
+                        width: isLoading
+                          ? "0%"
+                          : `${stats?.payments.collectionRate || 0}%`,
+                      }}
+                    ></div>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <p className="font-medium">Utility Fees</p>
-                    <p>$6,250 / $8,200</p>
+                    <p className="font-medium">Overdue Payments</p>
+                    <p>
+                      {isLoading
+                        ? "..."
+                        : `$${
+                            stats?.payments.overdueAmount.toLocaleString() || 0
+                          }`}
+                    </p>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: "76%" }}></div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <p className="font-medium">Parking Fees</p>
-                    <p>$4,000 / $7,000</p>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: "57%" }}></div>
+                    <div
+                      className="h-2 rounded-full bg-destructive"
+                      style={{
+                        width: isLoading
+                          ? "0%"
+                          : `${
+                              ((stats?.payments.overdueAmount || 0) /
+                                (stats?.payments.outstandingAmount || 1)) *
+                              100
+                            }%`,
+                      }}
+                    ></div>
                   </div>
                 </div>
               </div>
@@ -431,5 +593,5 @@ export default function AdminDashboard() {
         </div>
       </div>
     </MainLayout>
-  )
+  );
 }

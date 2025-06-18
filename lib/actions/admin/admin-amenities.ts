@@ -249,89 +249,38 @@ export async function deleteAmenity(amenityId: string) {
     }
 }
 
-// Get amenity booking statistics
+// Get amenity statistics
 export async function getAmenityStats() {
     const { supabase } = await getAuthenticatedAdmin()
 
     try {
-        // Get total bookings this month
-        const startOfMonth = new Date()
-        startOfMonth.setDate(1)
-        startOfMonth.setHours(0, 0, 0, 0)
+        const currentMonth = new Date()
+        currentMonth.setDate(1)
+        currentMonth.setHours(0, 0, 0, 0)
 
-        const { count: totalBookings, error: totalError } = await supabase
+        const { data: bookings, error } = await supabase
             .from("amenity_bookings")
-            .select("*", { count: "exact", head: true })
-            .gte("created_at", startOfMonth.toISOString())
+            .select("status, created_at")
+            .gte("created_at", currentMonth.toISOString())
 
-        if (totalError) {
-            throw new Error(`Failed to get total bookings: ${totalError.message}`)
+        if (error) {
+            throw new Error(`Failed to fetch amenity stats: ${error.message}`)
         }
 
-        // Get pending approvals
-        const { count: pendingApprovals, error: pendingError } = await supabase
-            .from("amenity_bookings")
-            .select("*", { count: "exact", head: true })
-            .eq("status", "pending")
-
-        if (pendingError) {
-            throw new Error(`Failed to get pending approvals: ${pendingError.message}`)
+        const stats = {
+            totalBookings: bookings?.length || 0,
+            pendingBookings: bookings?.filter((b) => b.status === "pending").length || 0,
+            approvedBookings: bookings?.filter((b) => b.status === "approved").length || 0,
+            rejectedBookings: bookings?.filter((b) => b.status === "rejected").length || 0,
         }
 
-        // Get most popular amenity
-        const { data: popularAmenity, error: popularError } = await supabase
-            .from("amenity_bookings")
-            .select(`
-        amenity_id,
-        amenities (name)
-      `)
-            .gte("created_at", startOfMonth.toISOString())
-
-        if (popularError) {
-            throw new Error(`Failed to get popular amenity: ${popularError.message}`)
-        }
-
-        // Count bookings per amenity
-        const amenityCounts: Record<string, number> = {}
-        popularAmenity?.forEach((booking: any) => {
-            const amenityName = booking.amenities?.name
-            if (amenityName) {
-                amenityCounts[amenityName] = (amenityCounts[amenityName] || 0) + 1
-            }
-        })
-
-        const mostPopular = Object.entries(amenityCounts).reduce(
-            (a, b) => (amenityCounts[a[0]] > amenityCounts[b[0]] ? a : b),
-            ["N/A", 0],
-        )
-
-        // Calculate revenue (simplified)
-        const { data: revenueData, error: revenueError } = await supabase
-            .from("amenity_bookings")
-            .select(`
-        amenities (hourly_rate)
-      `)
-            .eq("status", "approved")
-            .gte("created_at", startOfMonth.toISOString())
-
-        if (revenueError) {
-            throw new Error(`Failed to get revenue data: ${revenueError.message}`)
-        }
-
-        const totalRevenue =
-            revenueData?.reduce((sum, booking: any) => {
-                return sum + (booking.amenities?.hourly_rate || 0)
-            }, 0) || 0
-
-        return {
-            totalBookings: totalBookings || 0,
-            pendingApprovals: pendingApprovals || 0,
-            mostPopular: mostPopular[0],
-            mostPopularCount: mostPopular[1],
-            totalRevenue,
-        }
+        return stats
     } catch (error) {
         console.error("Error fetching amenity stats:", error)
         throw new Error(error instanceof Error ? error.message : "Failed to fetch amenity statistics")
     }
 }
+
+// Alias functions for backward compatibility
+export const approveBooking = approveAmenityBooking
+export const rejectBooking = rejectAmenityBooking

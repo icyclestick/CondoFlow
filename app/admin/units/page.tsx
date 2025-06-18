@@ -14,7 +14,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search } from "lucide-react";
-import { getUnits, getUnitsByBlock, searchUnits } from "@/lib/actions/units";
+import { getUnits } from "@/lib/actions";
+import {
+  getUnitsByBlock,
+  searchUnits,
+  updateUnitStatus,
+  addUnit,
+  deleteUnit,
+  getVacantUnits,
+} from "@/lib/actions";
 
 interface ResidentProfile {
   id: string;
@@ -46,11 +54,29 @@ interface Unit {
 export default function UnitsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBlock, setSelectedBlock] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [allUnits, setAllUnits] = useState<Unit[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
+
+  const fetchAllUnits = async () => {
+    try {
+      const data = await getUnits();
+      const formattedData = data.map((unit: any) => ({
+        ...unit,
+        unit_residency: unit.unit_residency?.map((residency: any) => ({
+          ...residency,
+          profiles: Array.isArray(residency.profiles)
+            ? residency.profiles[0]
+            : residency.profiles ?? null,
+        })),
+      }));
+      setAllUnits(formattedData);
+    } catch (error) {
+      console.error("Error fetching all units:", error);
+    }
+  };
 
   const fetchUnits = async () => {
     try {
@@ -58,7 +84,9 @@ export default function UnitsPage() {
       setError(null);
       let data;
 
-      if (searchTerm) {
+      if (activeTab === "vacant") {
+        data = await getVacantUnits();
+      } else if (searchTerm) {
         data = await searchUnits(searchTerm);
       } else if (selectedBlock) {
         data = await getUnitsByBlock(selectedBlock);
@@ -76,15 +104,7 @@ export default function UnitsPage() {
         })),
       }));
 
-      // Apply status filter if selected
-      if (selectedStatus) {
-        const filteredData = formattedData.filter(
-          (unit) => unit.status.toLowerCase() === selectedStatus.toLowerCase()
-        );
-        setUnits(filteredData);
-      } else {
-        setUnits(formattedData);
-      }
+      setUnits(formattedData);
     } catch (error) {
       console.log("Error fetching units:", error);
       setError(
@@ -95,35 +115,36 @@ export default function UnitsPage() {
     }
   };
 
-  // Debounce search term changes
+  useEffect(() => {
+    fetchAllUnits();
+  }, []);
+
+  useEffect(() => {
+    fetchUnits();
+  }, [activeTab]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchUnits();
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedBlock, selectedStatus]);
+  }, [searchTerm, selectedBlock]);
 
-  // Update tab content based on active tab
-  useEffect(() => {
-    if (activeTab === "occupied") {
-      setSelectedStatus("occupied");
-    } else if (activeTab === "vacant") {
-      setSelectedStatus("vacant");
-    } else {
-      setSelectedStatus("");
-    }
-  }, [activeTab]);
+  const filteredUnits = units.filter((unit) => {
+    if (activeTab === "all") return true;
+    if (activeTab === "vacant") return true;
+    return unit.status.toLowerCase() === activeTab;
+  });
 
-  // Calculate statistics
-  const totalUnits = units.length;
-  const occupiedUnits = units.filter(
+  const totalUnits = allUnits.length;
+  const occupiedUnits = allUnits.filter(
     (unit) => unit.status.toLowerCase() === "occupied"
   ).length;
-  const vacantUnits = units.filter(
+  const vacantUnits = allUnits.filter(
     (unit) => unit.status.toLowerCase() === "vacant"
   ).length;
-  const monthlyRevenue = units
+  const monthlyRevenue = allUnits
     .filter((unit) => unit.status.toLowerCase() === "occupied")
     .reduce((sum, unit) => sum + (unit.monthly_fee || 0), 0);
 
@@ -219,15 +240,6 @@ export default function UnitsPage() {
             <option value="C">Block C</option>
             <option value="D">Block D</option>
           </select>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-          >
-            <option value="">All Status</option>
-            <option value="occupied">Occupied</option>
-            <option value="vacant">Vacant</option>
-          </select>
         </div>
 
         <Tabs defaultValue="all" onValueChange={setActiveTab}>
@@ -268,14 +280,14 @@ export default function UnitsPage() {
                             {error}
                           </td>
                         </tr>
-                      ) : units.length === 0 ? (
+                      ) : filteredUnits.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="p-4 text-center">
                             No units found
                           </td>
                         </tr>
                       ) : (
-                        units.map((unit, i) => (
+                        filteredUnits.map((unit, i) => (
                           <tr key={i} className="border-b">
                             <td className="p-4 font-medium">
                               {unit.unit_number}
@@ -284,12 +296,13 @@ export default function UnitsPage() {
                             <td className="p-4">
                               <Badge
                                 variant={
-                                  unit.status === "Occupied"
+                                  unit.status.toLowerCase() === "occupied"
                                     ? "default"
                                     : "secondary"
                                 }
                               >
-                                {unit.status}
+                                {unit.status.charAt(0).toUpperCase() +
+                                  unit.status.slice(1)}
                               </Badge>
                             </td>
                             <td className="p-4">
@@ -326,7 +339,7 @@ export default function UnitsPage() {
                                 <Button size="sm" variant="outline">
                                   Edit
                                 </Button>
-                                {unit.status === "Vacant" && (
+                                {unit.status.toLowerCase() === "vacant" && (
                                   <Button size="sm">Assign</Button>
                                 )}
                               </div>
@@ -341,19 +354,6 @@ export default function UnitsPage() {
             </Card>
           </TabsContent>
           <TabsContent value="occupied" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Occupied Units</CardTitle>
-                <CardDescription>
-                  Units currently occupied by residents
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Filter will show only occupied units...
-                </p>
-              </CardContent>
-            </Card>
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -384,65 +384,57 @@ export default function UnitsPage() {
                             {error}
                           </td>
                         </tr>
-                      ) : units.length === 0 ? (
+                      ) : filteredUnits.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="p-4 text-center">
                             No occupied units found
                           </td>
                         </tr>
                       ) : (
-                        units
-                          .filter(
-                            (unit) => unit.status.toLowerCase() === "occupied"
-                          )
-                          .map((unit, i) => (
-                            <tr key={i} className="border-b">
-                              <td className="p-4 font-medium">
-                                {unit.unit_number}
-                              </td>
-                              <td className="p-4">{unit.block}</td>
-                              <td className="p-4">
-                                {unit.unit_residency &&
-                                unit.unit_residency.length > 0 ? (
-                                  unit.unit_residency
-                                    .filter((r) => r.is_active && r.profiles)
-                                    .map((r) => r.profiles.full_name)
-                                    .join(", ")
-                                ) : (
-                                  <span className="text-muted-foreground">
-                                    No residents
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-4 font-medium">
-                                {unit.monthly_fee
-                                  ? `$${unit.monthly_fee}`
-                                  : "-"}
-                              </td>
-                              <td className="p-4">
-                                {unit.unit_residency &&
-                                unit.unit_residency.length > 0 ? (
-                                  new Date(
-                                    unit.unit_residency[0].start_date
-                                  ).toLocaleDateString()
-                                ) : (
-                                  <span className="text-muted-foreground">
-                                    -
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-4">
-                                <div className="flex space-x-2">
-                                  <Button size="sm" variant="outline">
-                                    View
-                                  </Button>
-                                  <Button size="sm" variant="outline">
-                                    Edit
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))
+                        filteredUnits.map((unit, i) => (
+                          <tr key={i} className="border-b">
+                            <td className="p-4 font-medium">
+                              {unit.unit_number}
+                            </td>
+                            <td className="p-4">{unit.block}</td>
+                            <td className="p-4">
+                              {unit.unit_residency &&
+                              unit.unit_residency.length > 0 ? (
+                                unit.unit_residency
+                                  .filter((r) => r.is_active && r.profiles)
+                                  .map((r) => r.profiles.full_name)
+                                  .join(", ")
+                              ) : (
+                                <span className="text-muted-foreground">
+                                  No residents
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-4 font-medium">
+                              {unit.monthly_fee ? `$${unit.monthly_fee}` : "-"}
+                            </td>
+                            <td className="p-4">
+                              {unit.unit_residency &&
+                              unit.unit_residency.length > 0 ? (
+                                new Date(
+                                  unit.unit_residency[0].start_date
+                                ).toLocaleDateString()
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <div className="flex space-x-2">
+                                <Button size="sm" variant="outline">
+                                  View
+                                </Button>
+                                <Button size="sm" variant="outline">
+                                  Edit
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
                       )}
                     </tbody>
                   </table>
@@ -451,19 +443,6 @@ export default function UnitsPage() {
             </Card>
           </TabsContent>
           <TabsContent value="vacant" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Vacant Units</CardTitle>
-                <CardDescription>
-                  Units available for new residents
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Filter will show only vacant units...
-                </p>
-              </CardContent>
-            </Card>
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -492,41 +471,35 @@ export default function UnitsPage() {
                             {error}
                           </td>
                         </tr>
-                      ) : units.length === 0 ? (
+                      ) : filteredUnits.length === 0 ? (
                         <tr>
                           <td colSpan={4} className="p-4 text-center">
                             No vacant units found
                           </td>
                         </tr>
                       ) : (
-                        units
-                          .filter(
-                            (unit) => unit.status.toLowerCase() === "vacant"
-                          )
-                          .map((unit, i) => (
-                            <tr key={i} className="border-b">
-                              <td className="p-4 font-medium">
-                                {unit.unit_number}
-                              </td>
-                              <td className="p-4">{unit.block}</td>
-                              <td className="p-4 font-medium">
-                                {unit.monthly_fee
-                                  ? `$${unit.monthly_fee}`
-                                  : "-"}
-                              </td>
-                              <td className="p-4">
-                                <div className="flex space-x-2">
-                                  <Button size="sm" variant="outline">
-                                    View
-                                  </Button>
-                                  <Button size="sm" variant="outline">
-                                    Edit
-                                  </Button>
-                                  <Button size="sm">Assign</Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))
+                        filteredUnits.map((unit, i) => (
+                          <tr key={i} className="border-b">
+                            <td className="p-4 font-medium">
+                              {unit.unit_number}
+                            </td>
+                            <td className="p-4">{unit.block}</td>
+                            <td className="p-4 font-medium">
+                              {unit.monthly_fee ? `$${unit.monthly_fee}` : "-"}
+                            </td>
+                            <td className="p-4">
+                              <div className="flex space-x-2">
+                                <Button size="sm" variant="outline">
+                                  View
+                                </Button>
+                                <Button size="sm" variant="outline">
+                                  Edit
+                                </Button>
+                                <Button size="sm">Assign</Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
                       )}
                     </tbody>
                   </table>

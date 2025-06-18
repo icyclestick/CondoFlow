@@ -17,10 +17,10 @@ import { Search, Wrench, Clock, User, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   getAllServiceRequests,
-  getServiceStats,
-  assignServiceRequest,
+  getServiceRequestStats,
   updateServiceRequestStatus,
-} from "@/lib/actions/admin-services";
+  assignServiceRequest,
+} from "@/lib/actions";
 
 interface ServiceRequest {
   id: string;
@@ -65,7 +65,7 @@ export default function AdminServicesPage() {
       setIsLoading(true);
       const [requestsData, statsData] = await Promise.all([
         getAllServiceRequests(),
-        getServiceStats(),
+        getServiceRequestStats(),
       ]);
 
       setRequests(

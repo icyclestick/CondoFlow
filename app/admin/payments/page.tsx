@@ -1,26 +1,157 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { MainLayout } from "@/components/main-layout"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, DollarSign, TrendingUp, AlertCircle, Download } from "lucide-react"
+import { useEffect, useState } from "react";
+import { MainLayout } from "@/components/main-layout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Search,
+  DollarSign,
+  TrendingUp,
+  AlertCircle,
+  Download,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  getAllPayments,
+  getPaymentStats,
+  markPaymentAsPaid,
+  generateReceipt,
+} from "@/lib/actions";
+
+interface Payment {
+  id: string;
+  amount: number;
+  type: string;
+  due_date: string;
+  payment_date: string | null;
+  payment_method: string | null;
+  status: string;
+  profiles: {
+    full_name: string;
+    email: string;
+    phone: string;
+  };
+  units: {
+    block: string;
+    unit_number: string;
+  };
+}
+
+interface PaymentStats {
+  totalRevenue: number;
+  outstandingAmount: number;
+  collectionRate: number;
+  overdueAmount: number;
+  outstandingCount: number;
+  overdueCount: number;
+}
 
 export default function AdminPaymentsPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedStatus, setSelectedStatus] = useState("")
-  const [selectedType, setSelectedType] = useState("")
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [stats, setStats] = useState<PaymentStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedType, setSelectedType] = useState("");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const [paymentsData, statsData] = await Promise.all([
+        getAllPayments(),
+        getPaymentStats(),
+      ]);
+      setPayments(paymentsData);
+      setStats(statsData);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to fetch data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMarkAsPaid = async (paymentId: string) => {
+    try {
+      await markPaymentAsPaid(paymentId, "manual");
+      toast({
+        title: "Payment Updated",
+        description: "The payment has been marked as paid successfully.",
+      });
+      fetchData();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to update payment",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGenerateReceipt = async (paymentId: string) => {
+    try {
+      await generateReceipt(paymentId);
+      toast({
+        title: "Receipt Generated",
+        description: "The receipt has been generated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to generate receipt",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const filteredPayments = payments.filter((payment) => {
+    const matchesSearch =
+      !searchTerm ||
+      payment.profiles.full_name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      `${payment.units.block}${payment.units.unit_number}`
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+    const matchesStatus = !selectedStatus || payment.status === selectedStatus;
+    const matchesType = !selectedType || payment.type === selectedType;
+
+    return matchesSearch && matchesStatus && matchesType;
+  });
 
   return (
     <MainLayout userRole="admin">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Payment Management</h1>
-            <p className="text-muted-foreground">Manage resident payments and dues</p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Payment Management
+            </h1>
+            <p className="text-muted-foreground">
+              Manage resident payments and dues
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline">
@@ -33,11 +164,15 @@ export default function AdminPaymentsPage() {
         <div className="grid gap-6 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Total Revenue
+              </CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$62,300</div>
+              <div className="text-2xl font-bold">
+                ${stats?.totalRevenue.toFixed(2) || "0.00"}
+              </div>
               <p className="text-xs text-muted-foreground">This month</p>
             </CardContent>
           </Card>
@@ -47,18 +182,28 @@ export default function AdminPaymentsPage() {
               <AlertCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$8,750</div>
-              <p className="text-xs text-muted-foreground">From 25 residents</p>
+              <div className="text-2xl font-bold">
+                ${stats?.outstandingAmount.toFixed(2) || "0.00"}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                From {stats?.outstandingCount || 0} residents
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Collection Rate</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Collection Rate
+              </CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">87.6%</div>
-              <p className="text-xs text-muted-foreground">+2.1% from last month</p>
+              <div className="text-2xl font-bold">
+                {stats?.collectionRate || 0}%
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Current collection rate
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -67,8 +212,12 @@ export default function AdminPaymentsPage() {
               <AlertCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$3,200</div>
-              <p className="text-xs text-muted-foreground">From 8 residents</p>
+              <div className="text-2xl font-bold">
+                ${stats?.overdueAmount.toFixed(2) || "0.00"}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                From {stats?.overdueCount || 0} residents
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -117,7 +266,9 @@ export default function AdminPaymentsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Payment Records</CardTitle>
-                <CardDescription>All payment records and transactions</CardDescription>
+                <CardDescription>
+                  All payment records and transactions
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -136,94 +287,99 @@ export default function AdminPaymentsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        {
-                          resident: "John Doe",
-                          unit: "A-203",
-                          type: "Association Dues",
-                          amount: "$350.00",
-                          dueDate: "May 30, 2025",
-                          paymentDate: "May 28, 2025",
-                          method: "Credit Card",
-                          status: "Paid",
-                        },
-                        {
-                          resident: "Jane Smith",
-                          unit: "B-512",
-                          type: "Parking Fee",
-                          amount: "$50.00",
-                          dueDate: "May 30, 2025",
-                          paymentDate: "-",
-                          method: "-",
-                          status: "Pending",
-                        },
-                        {
-                          resident: "Robert Johnson",
-                          unit: "C-108",
-                          type: "Association Dues",
-                          amount: "$350.00",
-                          dueDate: "April 30, 2025",
-                          paymentDate: "-",
-                          method: "-",
-                          status: "Overdue",
-                        },
-                        {
-                          resident: "Emily Davis",
-                          unit: "A-305",
-                          type: "Utilities",
-                          amount: "$125.00",
-                          dueDate: "May 30, 2025",
-                          paymentDate: "May 25, 2025",
-                          method: "Bank Transfer",
-                          status: "Paid",
-                        },
-                        {
-                          resident: "Michael Brown",
-                          unit: "D-401",
-                          type: "Association Dues",
-                          amount: "$350.00",
-                          dueDate: "May 30, 2025",
-                          paymentDate: "-",
-                          method: "-",
-                          status: "Pending",
-                        },
-                      ].map((payment, i) => (
-                        <tr key={i} className="border-b">
-                          <td className="py-3">{payment.resident}</td>
-                          <td className="py-3">{payment.unit}</td>
-                          <td className="py-3">{payment.type}</td>
-                          <td className="py-3 font-medium">{payment.amount}</td>
-                          <td className="py-3">{payment.dueDate}</td>
-                          <td className="py-3">{payment.paymentDate}</td>
-                          <td className="py-3">{payment.method}</td>
-                          <td className="py-3">
-                            <Badge
-                              variant={
-                                payment.status === "Paid"
-                                  ? "default"
-                                  : payment.status === "Overdue"
-                                    ? "destructive"
-                                    : "outline"
-                              }
-                            >
-                              {payment.status}
-                            </Badge>
-                          </td>
-                          <td className="py-3">
-                            <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                View
-                              </Button>
-                              {payment.status === "Paid" && (
-                                <Button size="sm" variant="outline">
-                                  Receipt
-                                </Button>
-                              )}
-                              {payment.status !== "Paid" && <Button size="sm">Mark Paid</Button>}
-                            </div>
+                      {isLoading ? (
+                        <tr>
+                          <td
+                            colSpan={9}
+                            className="py-8 text-center text-muted-foreground"
+                          >
+                            Loading payments...
                           </td>
                         </tr>
-                      ))}
+                      ) : filteredPayments.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={9}
+                            className="py-8 text-center text-muted-foreground"
+                          >
+                            No payments found
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredPayments.map((payment) => (
+                          <tr key={payment.id} className="border-b">
+                            <td className="py-3">
+                              <div>
+                                <div className="font-medium">
+                                  {payment.profiles.full_name}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {payment.profiles.email}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3">
+                              {payment.units.block}-{payment.units.unit_number}
+                            </td>
+                            <td className="py-3">{payment.type}</td>
+                            <td className="py-3 font-medium">
+                              ${payment.amount.toFixed(2)}
+                            </td>
+                            <td className="py-3">
+                              {new Date(payment.due_date).toLocaleDateString()}
+                            </td>
+                            <td className="py-3">
+                              {payment.payment_date
+                                ? new Date(
+                                    payment.payment_date
+                                  ).toLocaleDateString()
+                                : "-"}
+                            </td>
+                            <td className="py-3">
+                              {payment.payment_method || "-"}
+                            </td>
+                            <td className="py-3">
+                              <Badge
+                                variant={
+                                  payment.status === "paid"
+                                    ? "default"
+                                    : payment.status === "overdue"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                              >
+                                {payment.status}
+                              </Badge>
+                            </td>
+                            <td className="py-3">
+                              <div className="flex space-x-2">
+                                <Button size="sm" variant="outline">
+                                  View
+                                </Button>
+                                {payment.status === "paid" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      handleGenerateReceipt(payment.id)
+                                    }
+                                  >
+                                    Receipt
+                                  </Button>
+                                )}
+                                {payment.status !== "paid" && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleMarkAsPaid(payment.id)}
+                                  >
+                                    Mark Paid
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -234,10 +390,14 @@ export default function AdminPaymentsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Outstanding Payments</CardTitle>
-                <CardDescription>Payments that are pending or overdue</CardDescription>
+                <CardDescription>
+                  Payments that are pending or overdue
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Filter will show only outstanding payments...</p>
+                <p className="text-muted-foreground">
+                  Filter will show only outstanding payments...
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -245,15 +405,19 @@ export default function AdminPaymentsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Overdue Payments</CardTitle>
-                <CardDescription>Payments that are past their due date</CardDescription>
+                <CardDescription>
+                  Payments that are past their due date
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Filter will show only overdue payments...</p>
+                <p className="text-muted-foreground">
+                  Filter will show only overdue payments...
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
     </MainLayout>
-  )
+  );
 }

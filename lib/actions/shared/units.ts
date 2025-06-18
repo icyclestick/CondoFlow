@@ -14,7 +14,7 @@ export async function getUnits() {
        unit_number,
        status,
        monthly_fee,
-       unit_residency!inner(
+       unit_residency(
         id,
         resident_id,
         is_active,
@@ -30,7 +30,6 @@ export async function getUnits() {
         )  
        )
       `)
-    .eq("unit_residency.is_active", true)
     .order("block")
     .order("unit_number")
 
@@ -90,4 +89,67 @@ export async function searchUnits(searchTerm: string, limit = 20) {
   }
 
   return units
+}
+
+// Update unit status
+export async function updateUnitStatus(unitId: string, status: string) {
+  const supabase = createServerSupabaseServiceClient()
+
+  const { data, error } = await supabase
+    .from("units")
+    .update({ status })
+    .eq("id", unitId)
+    .select()
+
+  if (error) {
+    throw new Error(`Failed to update unit status: ${error.message}`)
+  }
+
+  return data
+}
+
+// Add new unit
+export async function addUnit(formData: FormData) {
+  const supabase = createServerSupabaseServiceClient()
+
+  const block = formData.get("block") as string
+  const unitNumber = formData.get("unitNumber") as string
+  const monthlyFee = Number(formData.get("monthlyFee")) || 0
+  const status = (formData.get("status") as string) || "vacant"
+
+  if (!block || !unitNumber) {
+    throw new Error("Block and unit number are required")
+  }
+
+  const { data, error } = await supabase
+    .from("units")
+    .insert({
+      block,
+      unit_number: unitNumber,
+      monthly_fee: monthlyFee,
+      status,
+    })
+    .select()
+
+  if (error) {
+    throw new Error(`Failed to add unit: ${error.message}`)
+  }
+
+  return data
+}
+
+// Delete unit
+export async function deleteUnit(unitId: string) {
+  const supabase = createServerSupabaseServiceClient()
+
+  const { error } = await supabase
+    .from("units")
+    .delete()
+    .eq("id", unitId)
+
+  if (error) {
+    throw new Error(`Failed to delete unit: ${error.message}`)
+  }
+
+  return { success: true }
 }

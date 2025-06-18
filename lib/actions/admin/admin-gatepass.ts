@@ -11,7 +11,7 @@ export async function getAllGatepassRequests() {
             .from("gatepass_requests")
             .select(`
         *,
-        profiles!gatepass_requests_resident_id_fkey (
+        profiles!gatepass_requests_user_id_fkey (
           id,
           full_name,
           email,
@@ -130,5 +130,19 @@ export async function completeGatepassRequest(requestId: string) {
     } catch (error) {
         console.error("Error completing gatepass request:", error)
         throw new Error(error instanceof Error ? error.message : "Failed to complete gatepass request")
+    }
+}
+
+// Alias function for backward compatibility
+export async function updateGatepassStatus(requestId: string, status: string, adminNotes?: string) {
+    switch (status) {
+        case "approved":
+            return approveGatepassRequest(requestId, adminNotes)
+        case "rejected":
+            return rejectGatepassRequest(requestId, adminNotes)
+        case "completed":
+            return completeGatepassRequest(requestId)
+        default:
+            throw new Error(`Invalid status: ${status}`)
     }
 }

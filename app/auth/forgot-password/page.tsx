@@ -1,33 +1,41 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import { Building, ArrowLeft } from "lucide-react"
-import { forgotPassword } from "@/lib/actions/auth"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
+import { useState } from "react";
+import Link from "next/link";
+import { Building, ArrowLeft } from "lucide-react";
+import { forgotPassword } from "@/lib/actions";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ForgotPasswordPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSubmitted, setIsSubmitted] = useState(false)
-  const { toast } = useToast()
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { toast } = useToast();
 
   async function handleSubmit(formData: FormData) {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      await forgotPassword(formData)
-      setIsSubmitted(true)
+      await forgotPassword(formData);
+      setIsSubmitted(true);
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send reset email",
+        description:
+          error instanceof Error ? error.message : "Failed to send reset email",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
@@ -40,14 +48,17 @@ export default function ForgotPasswordPage() {
           </div>
           <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
           <CardDescription>
-            {isSubmitted ? "Check your email for a reset link" : "Enter your email to receive a password reset link"}
+            {isSubmitted
+              ? "Check your email for a reset link"
+              : "Enter your email to receive a password reset link"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isSubmitted ? (
             <div className="text-center space-y-4">
               <p className="text-muted-foreground">
-                If an account exists with that email, we've sent a password reset link.
+                If an account exists with that email, we've sent a password
+                reset link.
               </p>
               <Button asChild className="w-full">
                 <Link href="/auth/signin">Return to Sign In</Link>
@@ -76,5 +87,5 @@ export default function ForgotPasswordPage() {
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }

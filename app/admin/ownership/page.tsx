@@ -12,7 +12,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   getAllUnitOwners,
   getOwnershipStats,
-} from "@/lib/actions/improved-residents";
+  addUnitOwnership,
+  editUnitOwnership,
+  transferUnitOwnership,
+} from "@/lib/actions";
 import Link from "next/link";
 
 // Type definitions for ownership data
