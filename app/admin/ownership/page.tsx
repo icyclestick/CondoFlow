@@ -64,8 +64,23 @@ export default function OwnershipPage() {
   const fetchOwnerships = async () => {
     try {
       setIsLoading(true);
-      const data = await getAllUnitOwners();
-      setOwnerships(data);
+      let data: any[] = await getAllUnitOwners();
+      data = data
+        .map((ownership) => ({
+          ...ownership,
+          profiles: Array.isArray(ownership.profiles)
+            ? ownership.profiles[0]
+            : ownership.profiles,
+        }))
+        .filter(
+          (ownership) =>
+            ownership.profiles &&
+            typeof ownership.profiles.id === "string" &&
+            typeof ownership.profiles.full_name === "string" &&
+            typeof ownership.profiles.email === "string" &&
+            !Array.isArray(ownership.profiles)
+        );
+      setOwnerships(data as OwnershipRecord[]);
     } catch (error) {
       toast({
         title: "Error",
@@ -126,6 +141,27 @@ export default function OwnershipPage() {
     acc[unitKey].push(ownership);
     return acc;
   }, {} as Record<string, OwnershipRecord[]>);
+
+  // Tab-based filtering
+  let tabFilteredOwnerships = filteredOwnerships;
+  if (activeTab === "owner-occupied") {
+    tabFilteredOwnerships = filteredOwnerships.filter(
+      (ownership) =>
+        ownership.ownership_type === "primary" &&
+        ownership.profiles.profile_type === "owner-occupied"
+    );
+  } else if (activeTab === "investment") {
+    tabFilteredOwnerships = filteredOwnerships.filter(
+      (ownership) =>
+        ownership.ownership_type === "primary" &&
+        ownership.profiles.profile_type !== "owner-occupied"
+    );
+  } else if (activeTab === "co-owned") {
+    tabFilteredOwnerships = filteredOwnerships.filter((ownership) => {
+      const unitKey = `${ownership.units.block}-${ownership.units.unit_number}`;
+      return ownershipsByUnit[unitKey]?.length > 1;
+    });
+  }
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -286,7 +322,7 @@ export default function OwnershipPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredOwnerships.length === 0 ? (
+                        {tabFilteredOwnerships.length === 0 ? (
                           <tr>
                             <td
                               colSpan={7}
@@ -296,7 +332,7 @@ export default function OwnershipPage() {
                             </td>
                           </tr>
                         ) : (
-                          filteredOwnerships.map((ownership) => {
+                          tabFilteredOwnerships.map((ownership) => {
                             const unitKey = `${ownership.units.block}-${ownership.units.unit_number}`;
                             const isCoOwned =
                               ownershipsByUnit[unitKey]?.length > 1;

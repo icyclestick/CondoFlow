@@ -20,7 +20,19 @@ import {
   getAmenityStats,
   approveBooking,
   rejectBooking,
+  getAllAmenities,
+  createAmenity,
+  updateAmenity,
 } from "@/lib/actions";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Calendar as UiCalendar } from "@/components/ui/calendar";
 
 interface AmenityBooking {
   id: string;
@@ -44,6 +56,7 @@ interface Amenity {
   capacity: number;
   hourly_rate: number;
   is_active: boolean;
+  image_url?: string;
 }
 
 interface AmenityStats {
@@ -61,6 +74,18 @@ export default function AdminAmenitiesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const { toast } = useToast();
+  const [showAmenityModal, setShowAmenityModal] = useState(false);
+  const [editingAmenity, setEditingAmenity] = useState<Amenity | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    capacity: 1,
+    hourly_rate: 0,
+    image_url: "",
+    is_active: true,
+  });
+  const [formLoading, setFormLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     fetchData();
@@ -75,9 +100,28 @@ export default function AdminAmenitiesPage() {
         getAmenityStats(),
       ]);
 
-      setBookings(bookingsData);
+      setBookings(
+        bookingsData.map((b: any) => ({
+          ...b,
+          amenities: Array.isArray(b.amenities)
+            ? b.amenities[0] || { name: "" }
+            : b.amenities || { name: "" },
+          profiles: Array.isArray(b.profiles)
+            ? b.profiles[0] || { full_name: "" }
+            : b.profiles || { full_name: "" },
+        }))
+      );
       setAmenities(amenitiesData);
-      setStats(statsData);
+      setStats({
+        totalBookings: statsData.totalBookings ?? 0,
+        pendingBookings: statsData.pendingBookings ?? 0,
+        mostPopularAmenity:
+          "mostPopularAmenity" in statsData
+            ? String(statsData.mostPopularAmenity)
+            : "N/A",
+        totalRevenue:
+          "totalRevenue" in statsData ? Number(statsData.totalRevenue) : 0,
+      });
     } catch (error) {
       toast({
         title: "Error",
@@ -143,6 +187,97 @@ export default function AdminAmenitiesPage() {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const openAddAmenity = () => {
+    setEditingAmenity(null);
+    setForm({
+      name: "",
+      description: "",
+      capacity: 1,
+      hourly_rate: 0,
+      image_url: "",
+      is_active: true,
+    });
+    setShowAmenityModal(true);
+  };
+
+  const openEditAmenity = (amenity: Amenity) => {
+    setEditingAmenity(amenity);
+    setForm({
+      name: amenity.name,
+      description: amenity.description || "",
+      capacity: amenity.capacity,
+      hourly_rate: amenity.hourly_rate,
+      image_url: amenity.image_url || "",
+      is_active: amenity.is_active,
+    });
+    setShowAmenityModal(true);
+  };
+
+  const closeAmenityModal = () => {
+    setShowAmenityModal(false);
+    setEditingAmenity(null);
+  };
+
+  const handleFormChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value, type } = e.target;
+    if (type === "checkbox" && e.target instanceof HTMLInputElement) {
+      setForm((prev) => ({
+        ...prev,
+        [name]: (e.target as HTMLInputElement).checked,
+      }));
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
+  };
+
+  const handleAmenitySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormLoading(true);
+    try {
+      const formData = new FormData();
+      formData.set("name", form.name);
+      formData.set("description", form.description);
+      formData.set("capacity", String(form.capacity));
+      formData.set("hourlyRate", String(form.hourly_rate));
+      formData.set("image_url", form.image_url);
+      formData.set("isActive", String(form.is_active));
+      if (editingAmenity) {
+        await updateAmenity(editingAmenity.id, formData);
+        toast({ title: "Amenity updated" });
+      } else {
+        await createAmenity(formData);
+        toast({ title: "Amenity created" });
+      }
+      closeAmenityModal();
+      fetchData();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to save amenity.",
+        variant: "destructive",
+      });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Get all booking dates as Date objects
+  const bookingDates = bookings.map((b) => new Date(b.booking_date));
+  // Get bookings for the selected date
+  const bookingsForSelectedDate = selectedDate
+    ? bookings.filter(
+        (b) =>
+          new Date(b.booking_date).toDateString() ===
+          selectedDate.toDateString()
+      )
+    : [];
+
   if (isLoading) {
     return (
       <MainLayout userRole="admin">
@@ -165,7 +300,7 @@ export default function AdminAmenitiesPage() {
               Manage amenity bookings and availability
             </p>
           </div>
-          <Button>
+          <Button onClick={openAddAmenity}>
             <Plus className="mr-2 h-4 w-4" />
             Add Amenity
           </Button>
@@ -387,7 +522,11 @@ export default function AdminAmenitiesPage() {
                           )}
                         </div>
                         <div className="mt-4 flex space-x-2">
-                          <Button size="sm" variant="outline">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openEditAmenity(amenity)}
+                          >
                             Edit
                           </Button>
                           <Button size="sm" variant="outline">
@@ -410,20 +549,152 @@ export default function AdminAmenitiesPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    Calendar view would be implemented here
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    This would show a calendar with all bookings and available
-                    time slots
-                  </p>
+                <div className="flex flex-col md:flex-row gap-8">
+                  <div>
+                    <UiCalendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      modifiers={{ booked: bookingDates }}
+                      modifiersClassNames={{ booked: "bg-primary/20" }}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    {selectedDate ? (
+                      <>
+                        <h3 className="font-semibold mb-2">
+                          Bookings for {selectedDate.toLocaleDateString()}
+                        </h3>
+                        {bookingsForSelectedDate.length === 0 ? (
+                          <div className="text-muted-foreground">
+                            No bookings for this day.
+                          </div>
+                        ) : (
+                          <ul className="space-y-2">
+                            {bookingsForSelectedDate.map((b) => (
+                              <li key={b.id} className="border rounded p-2">
+                                <div>
+                                  <strong>Amenity:</strong> {b.amenities.name}
+                                </div>
+                                <div>
+                                  <strong>Time:</strong> {b.time_slot}
+                                </div>
+                                <div>
+                                  <strong>Resident:</strong>{" "}
+                                  {b.profiles.full_name}
+                                </div>
+                                <div>
+                                  <strong>Status:</strong>{" "}
+                                  <Badge>{b.status}</Badge>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-muted-foreground">
+                        Select a date to view bookings.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={showAmenityModal} onOpenChange={setShowAmenityModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingAmenity ? "Edit Amenity" : "Add Amenity"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAmenitySubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                name="name"
+                value={form.name}
+                onChange={handleFormChange}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                name="description"
+                value={form.description}
+                onChange={handleFormChange}
+              />
+            </div>
+            <div>
+              <Label htmlFor="capacity">Capacity</Label>
+              <Input
+                id="capacity"
+                name="capacity"
+                type="number"
+                min={1}
+                value={form.capacity}
+                onChange={handleFormChange}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="hourly_rate">Hourly Rate</Label>
+              <Input
+                id="hourly_rate"
+                name="hourly_rate"
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.hourly_rate}
+                onChange={handleFormChange}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="image_url">Image URL</Label>
+              <Input
+                id="image_url"
+                name="image_url"
+                value={form.image_url}
+                onChange={handleFormChange}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="is_active"
+                name="is_active"
+                type="checkbox"
+                checked={form.is_active}
+                onChange={handleFormChange}
+              />
+              <Label htmlFor="is_active">Active</Label>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeAmenityModal}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={formLoading}>
+                {formLoading
+                  ? "Saving..."
+                  : editingAmenity
+                  ? "Save Changes"
+                  : "Add Amenity"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

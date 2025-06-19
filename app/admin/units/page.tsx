@@ -23,6 +23,7 @@ import {
   deleteUnit,
   getVacantUnits,
 } from "@/lib/actions";
+import Link from "next/link";
 
 interface ResidentProfile {
   id: string;
@@ -160,9 +161,11 @@ export default function UnitsPage() {
               Manage condo units and their occupancy
             </p>
           </div>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Unit
+          <Button asChild>
+            <Link href="/admin/units/create">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Unit
+            </Link>
           </Button>
         </div>
 
@@ -235,10 +238,8 @@ export default function UnitsPage() {
             className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >
             <option value="">All Blocks</option>
-            <option value="A">Block A</option>
-            <option value="B">Block B</option>
-            <option value="C">Block C</option>
-            <option value="D">Block D</option>
+            <option value="N">North Tower (N)</option>
+            <option value="S">South Tower (S)</option>
           </select>
         </div>
 
@@ -333,14 +334,24 @@ export default function UnitsPage() {
                             </td>
                             <td className="p-4">
                               <div className="flex space-x-2">
-                                <Button size="sm" variant="outline">
-                                  View
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link href={`/admin/units/${unit.id}`}>
+                                    View
+                                  </Link>
                                 </Button>
-                                <Button size="sm" variant="outline">
-                                  Edit
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link href={`/admin/units/${unit.id}/edit`}>
+                                    Edit
+                                  </Link>
                                 </Button>
                                 {unit.status.toLowerCase() === "vacant" && (
-                                  <Button size="sm">Assign</Button>
+                                  <Button size="sm" asChild>
+                                    <Link
+                                      href={`/admin/units/${unit.id}/assign`}
+                                    >
+                                      Assign
+                                    </Link>
+                                  </Button>
                                 )}
                               </div>
                             </td>
@@ -425,11 +436,15 @@ export default function UnitsPage() {
                             </td>
                             <td className="p-4">
                               <div className="flex space-x-2">
-                                <Button size="sm" variant="outline">
-                                  View
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link href={`/admin/units/${unit.id}`}>
+                                    View
+                                  </Link>
                                 </Button>
-                                <Button size="sm" variant="outline">
-                                  Edit
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link href={`/admin/units/${unit.id}/edit`}>
+                                    Edit
+                                  </Link>
                                 </Button>
                               </div>
                             </td>
@@ -489,13 +504,21 @@ export default function UnitsPage() {
                             </td>
                             <td className="p-4">
                               <div className="flex space-x-2">
-                                <Button size="sm" variant="outline">
-                                  View
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link href={`/admin/units/${unit.id}`}>
+                                    View
+                                  </Link>
                                 </Button>
-                                <Button size="sm" variant="outline">
-                                  Edit
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link href={`/admin/units/${unit.id}/edit`}>
+                                    Edit
+                                  </Link>
                                 </Button>
-                                <Button size="sm">Assign</Button>
+                                <Button size="sm" asChild>
+                                  <Link href={`/admin/units/${unit.id}/assign`}>
+                                    Assign
+                                  </Link>
+                                </Button>
                               </div>
                             </td>
                           </tr>

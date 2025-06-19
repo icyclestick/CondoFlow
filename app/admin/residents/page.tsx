@@ -73,29 +73,40 @@ export default function ResidentsPage() {
   const { toast } = useToast();
 
   // Fetch residents data
+  const mapToResident = (resident: any): Resident => {
+    const primaryResidency =
+      resident.residing_units?.find((r: any) => r.is_primary_resident) ||
+      resident.residing_units?.[0] ||
+      null;
+    return {
+      ...resident,
+      units: primaryResidency
+        ? Array.isArray(primaryResidency.units)
+          ? primaryResidency.units[0] || null
+          : primaryResidency.units || null
+        : null,
+      residency_type: primaryResidency?.residency_type || null,
+      total_residing_units: Array.isArray(resident.residing_units)
+        ? resident.residing_units.length
+        : 0,
+      total_owned_units: Array.isArray(resident.owned_units)
+        ? resident.owned_units.length
+        : 0,
+    };
+  };
+
   const fetchResidents = async () => {
     try {
       setIsLoading(true);
       let data: Resident[];
-
       if (selectedBlock) {
-        data = (await getResidentsByBlock(selectedBlock)).map((resident) => ({
-          ...resident,
-          units:
-            resident.units && resident.units.length > 0
-              ? resident.units[0]
-              : null,
-        }));
+        data = (await getAllResidents()).map(mapToResident);
+        data = data.filter(
+          (resident) => resident.units && resident.units.block === selectedBlock
+        );
       } else {
-        data = (await getAllResidents()).map((resident) => ({
-          ...resident,
-          units:
-            resident.units && resident.units.length > 0
-              ? resident.units[0]
-              : null,
-        }));
+        data = (await getAllResidents()).map(mapToResident);
       }
-
       setResidents(data);
     } catch (error) {
       toast({

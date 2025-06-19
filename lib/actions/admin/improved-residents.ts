@@ -923,3 +923,40 @@ export async function deleteResident(id: string) {
     throw new Error(error instanceof Error ? error.message : "Failed to delete resident")
   }
 }
+
+// Update unit details (Admin only)
+export async function updateUnit(unitId: string, formData: FormData) {
+  const { supabase } = await getAuthenticatedUser("admin");
+  try {
+    const block = formData.get("block") as string;
+    const unitNumber = formData.get("unit_number") as string;
+    const status = formData.get("status") as string;
+    const monthlyFee = formData.get("monthly_fee") ? Number(formData.get("monthly_fee")) : null;
+
+    if (!block || !unitNumber || !status) {
+      throw new Error("Block, unit number, and status are required");
+    }
+
+    const { data, error } = await supabase
+      .from("units")
+      .update({
+        block,
+        unit_number: unitNumber,
+        status,
+        monthly_fee: monthlyFee,
+      })
+      .eq("id", unitId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update unit: ${error.message}`);
+    }
+
+    revalidatePath("/admin/units");
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error updating unit:", error);
+    throw new Error(error instanceof Error ? error.message : "Failed to update unit");
+  }
+}
