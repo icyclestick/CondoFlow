@@ -35,3 +35,21 @@ export async function updateProfile(formData: FormData) {
   revalidatePath("/resident/profile")
   return { success: true }
 }
+
+export async function getCurrentUserProfile() {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error("Unauthorized");
+
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+
+  if (error) throw new Error("Profile not found");
+  return profile;
+}

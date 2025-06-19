@@ -11,7 +11,7 @@ export async function getAllMoveRequests() {
       .from("move_requests")
       .select(`
         *,
-        profiles!move_requests_resident_id_fkey (
+        profiles:user_id (
           id,
           full_name,
           email,

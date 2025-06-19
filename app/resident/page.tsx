@@ -32,9 +32,35 @@ import { getMyVisitorRequests } from "@/lib/actions/resident/resident-visitors";
 import { getMyComplaints } from "@/lib/actions/resident/resident-complaints";
 import { getMyMoveRequests } from "@/lib/actions/resident/resident-move-requests";
 import { getMyAmenityStats } from "@/lib/actions/resident/resident-amenities";
+import { getMyAmenityBookings } from "@/lib/actions/resident/resident-amenities";
 
 export default async function ResidentDashboard() {
-  // Fetch all dashboard data in parallel
+  type Unit = {
+    id: string;
+    block: string;
+    unit_number: string;
+    status: string;
+    monthly_fee: number;
+  };
+  type Booking = {
+    id: string;
+    booking_date: string;
+    time_slot: string;
+    status: string;
+    amenities: { name: string };
+  };
+  type RecentActivity = {
+    title: string;
+    description: string;
+    date: string;
+  };
+  type RequestTableRow = {
+    type: string;
+    description: string;
+    date: string;
+    status: string;
+  };
+
   const [
     profile,
     unitInfo,
@@ -44,6 +70,7 @@ export default async function ResidentDashboard() {
     complaints,
     moveRequests,
     amenityStats,
+    amenityBookings,
   ] = await Promise.all([
     getMyProfile(),
     getMyUnitInfo(),
@@ -53,11 +80,21 @@ export default async function ResidentDashboard() {
     getMyComplaints(),
     getMyMoveRequests(),
     getMyAmenityStats(),
+    getMyAmenityBookings(),
   ]);
 
-  // Example: Get next upcoming amenity booking (replace with real logic if needed)
-  // You may want to fetch getMyAmenityBookings for more detail
-  const nextBooking = null; // Placeholder, implement if you have getMyAmenityBookings
+  // Get next upcoming amenity booking
+  const now = new Date();
+  const nextBooking: Booking | null =
+    (amenityBookings as Booking[])
+      .filter(
+        (b) => new Date(b.booking_date) >= now && b.status !== "cancelled"
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.booking_date).getTime() -
+          new Date(b.booking_date).getTime()
+      )[0] || null;
 
   // Example: Get next payment due
   const nextPayment = payments.find((p: any) => p.status === "pending") || null;
@@ -71,10 +108,10 @@ export default async function ResidentDashboard() {
   ].length;
 
   // Example: Recent activity (combine from different sources, here just a placeholder)
-  const recentActivity = []; // You can build this from the above data
+  const recentActivity: RecentActivity[] = [];
 
   // Example: Requests table (combine from different sources)
-  const requestsTable = [
+  const requestsTable: RequestTableRow[] = [
     ...(serviceRequests?.map((r: any) => ({
       type: "Service Request",
       description: r.service_type,
@@ -102,16 +139,38 @@ export default async function ResidentDashboard() {
   ];
 
   return (
-    <MainLayout userRole="resident">
+    <MainLayout userRole={profile.role} userName={profile.full_name}>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
             Welcome, {profile?.full_name || "Resident"}
           </h1>
           <p className="text-muted-foreground">
-            {unitInfo?.primaryUnit
-              ? `Here's what's happening with your unit: Block ${unitInfo.primaryUnit.block}, Unit ${unitInfo.primaryUnit.unit_number}`
-              : "Here's what's happening with your unit"}
+            {(() => {
+              const pu = unitInfo?.primaryUnit;
+              if (
+                Array.isArray(pu) &&
+                pu.length > 0 &&
+                typeof pu[0] === "object" &&
+                pu[0] !== null &&
+                "block" in pu[0] &&
+                "unit_number" in pu[0]
+              ) {
+                return `Here's what's happening with your unit: Block ${
+                  (pu[0] as any).block
+                }, Unit ${(pu[0] as any).unit_number}`;
+              } else if (
+                pu &&
+                typeof pu === "object" &&
+                !Array.isArray(pu) &&
+                "block" in pu &&
+                "unit_number" in pu
+              ) {
+                return `Here's what's happening with your unit: Block ${pu.block}, Unit ${pu.unit_number}`;
+              } else {
+                return "Here's what's happening with your unit";
+              }
+            })()}
           </p>
         </div>
 
@@ -125,7 +184,9 @@ export default async function ResidentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {nextBooking ? nextBooking.amenity_name : "No upcoming booking"}
+                {nextBooking
+                  ? nextBooking.amenities.name
+                  : "No upcoming booking"}
               </div>
               <p className="text-xs text-muted-foreground">
                 {nextBooking

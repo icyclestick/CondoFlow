@@ -140,6 +140,7 @@ export async function getAllUnitOwners() {
   const { supabase } = await getAuthenticatedUser("admin")
 
   try {
+    // Fetch all active ownerships with owner and unit info
     const { data: owners, error } = await supabase
       .from("unit_ownership")
       .select(`
@@ -149,6 +150,8 @@ export async function getAllUnitOwners() {
         start_date,
         end_date,
         is_active,
+        owner_id,
+        unit_id,
         profiles!unit_ownership_owner_id_fkey (
           id,
           full_name,
@@ -173,7 +176,28 @@ export async function getAllUnitOwners() {
       throw new Error(`Failed to fetch unit owners: ${error.message}`)
     }
 
-    return owners || []
+    // Fetch all active residencies
+    const { data: residencies, error: residencyError } = await supabase
+      .from("unit_residency")
+      .select("unit_id, resident_id, is_active")
+      .eq("is_active", true)
+
+    if (residencyError) {
+      throw new Error(`Failed to fetch residencies: ${residencyError.message}`)
+    }
+
+    // Build a Set for quick lookup of owner-occupied
+    const ownerOccupiedSet = new Set(
+      (residencies || []).map(r => `${r.unit_id}:${r.resident_id}`)
+    );
+
+    // Add is_owner_occupied property to each ownership record
+    const ownersWithOccupancy = (owners || []).map((ownership) => ({
+      ...ownership,
+      is_owner_occupied: ownerOccupiedSet.has(`${ownership.unit_id}:${ownership.owner_id}`),
+    }));
+
+    return ownersWithOccupancy;
   } catch (error) {
     console.error("Error fetching unit owners:", error)
     throw new Error(error instanceof Error ? error.message : "Failed to fetch unit owners")

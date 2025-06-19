@@ -137,7 +137,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <MainLayout userRole="resident">
+    <MainLayout userRole={profile.role} userName={profile.full_name}>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">My Profile</h1>

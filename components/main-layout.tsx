@@ -2,7 +2,7 @@
 
 import type React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Building,
   Calendar,
@@ -42,14 +42,17 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { createClient } from "@/lib/supabase/client";
 
 interface MainLayoutProps {
   children: React.ReactNode;
   userRole: "admin" | "resident";
+  userName: string;
 }
 
-export function MainLayout({ children, userRole }: MainLayoutProps) {
+export function MainLayout({ children, userRole, userName }: MainLayoutProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const adminNavItems = [
     { href: "/admin", label: "Dashboard", icon: Home },
@@ -78,6 +81,12 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
   ];
 
   const navItems = userRole === "admin" ? adminNavItems : residentNavItems;
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/auth/signin");
+  };
 
   return (
     <SidebarProvider>
@@ -125,9 +134,7 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col items-start text-sm">
-                      <span className="font-medium">
-                        {userRole === "admin" ? "Admin User" : "John Resident"}
-                      </span>
+                      <span className="font-medium">{userName}</span>
                       <span className="text-xs text-muted-foreground capitalize">
                         {userRole}
                       </span>
@@ -137,16 +144,20 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      router.push(
+                        userRole === "admin"
+                          ? "/admin/profile"
+                          : "/resident/profile"
+                      )
+                    }
+                  >
                     <User className="mr-2 h-4 w-4" />
                     <span>Profile</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>
@@ -181,16 +192,20 @@ export function MainLayout({ children, userRole }: MainLayoutProps) {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      router.push(
+                        userRole === "admin"
+                          ? "/admin/profile"
+                          : "/resident/profile"
+                      )
+                    }
+                  >
                     <User className="mr-2 h-4 w-4" />
                     <span>Profile</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>
