@@ -32,13 +32,13 @@ export async function createMoveRequest(formData: FormData) {
     try {
         const type = formData.get("type") as string
         const moveDate = formData.get("moveDate") as string
-        const preferredTime = formData.get("preferredTime") as string
+        const timeSlot = formData.get("timeSlot") as string
         const movingCompany = formData.get("movingCompany") as string
         const reason = formData.get("reason") as string
         const largeItems = formData.get("largeItems") as string
 
-        if (!type || !moveDate || !preferredTime || !reason) {
-            throw new Error("Move type, date, time, and reason are required")
+        if (!type || !moveDate || !timeSlot || !reason) {
+            throw new Error("Move type, date, time slot, and reason are required")
         }
 
         const { data, error } = await supabase
@@ -47,7 +47,7 @@ export async function createMoveRequest(formData: FormData) {
                 user_id: user.id,
                 type,
                 move_date: moveDate,
-                preferred_time: preferredTime,
+                time_slot: timeSlot,
                 moving_company: movingCompany || null,
                 reason,
                 large_items: largeItems || null,
@@ -164,7 +164,7 @@ export async function updateMyMoveRequest(requestId: string, formData: FormData)
         }
 
         const moveDate = formData.get("moveDate") as string
-        const preferredTime = formData.get("preferredTime") as string
+        const timeSlot = formData.get("timeSlot") as string
         const movingCompany = formData.get("movingCompany") as string
         const reason = formData.get("reason") as string
         const largeItems = formData.get("largeItems") as string
@@ -174,7 +174,7 @@ export async function updateMyMoveRequest(requestId: string, formData: FormData)
         }
 
         if (moveDate) updateData.move_date = moveDate
-        if (preferredTime) updateData.preferred_time = preferredTime
+        if (timeSlot) updateData.time_slot = timeSlot
         if (movingCompany !== null) updateData.moving_company = movingCompany
         if (reason) updateData.reason = reason
         if (largeItems !== null) updateData.large_items = largeItems

@@ -46,7 +46,7 @@ export async function getMoveRequestStats() {
 
     const { data, error } = await supabase
       .from("move_requests")
-      .select("move_type, status, created_at")
+      .select("type, status, created_at")
       .gte("created_at", currentMonth.toISOString())
 
     if (error) {
@@ -56,8 +56,8 @@ export async function getMoveRequestStats() {
     const stats = {
       totalRequests: data?.length || 0,
       pendingRequests: data?.filter((r) => r.status === "pending").length || 0,
-      moveIns: data?.filter((r) => r.move_type === "move-in").length || 0,
-      moveOuts: data?.filter((r) => r.move_type === "move-out").length || 0,
+      moveIns: data?.filter((r) => r.type === "move-in").length || 0,
+      moveOuts: data?.filter((r) => r.type === "move-out").length || 0,
     }
 
     return stats

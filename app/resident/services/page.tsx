@@ -1,54 +1,88 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState } from "react"
-import { MainLayout } from "@/components/main-layout"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useToast } from "@/hooks/use-toast"
+import React, { useState, useEffect } from "react";
+import { MainLayout } from "@/components/main-layout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  createServiceRequest,
+  getMyServiceRequests,
+  cancelServiceRequest,
+} from "@/lib/actions/resident/services";
 
 export default function ServicesPage() {
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const { toast } = useToast()
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
+  const [serviceRequests, setServiceRequests] = useState<any[]>([]);
+  const [serviceType, setServiceType] = useState("");
+  const [preferredSchedule, setPreferredSchedule] = useState("");
+  const [urgency, setUrgency] = useState("low");
+  const [description, setDescription] = useState("");
+  const [viewRequest, setViewRequest] = useState<any | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getMyServiceRequests().then(setServiceRequests);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSuccess("");
+    setError("");
     try {
-      const formData = new FormData(e.currentTarget)
-
-      // Here you would call your server action
-      // await createServiceRequest(formData)
-
-      toast({
-        title: "Service Request Submitted",
-        description: "Your service request has been submitted successfully.",
-      })
-
-      // Reset form
-      e.currentTarget.reset()
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to submit service request. Please try again.",
-        variant: "destructive",
-      })
+      const formData = new FormData();
+      formData.append("serviceType", serviceType);
+      formData.append("preferredSchedule", preferredSchedule);
+      formData.append("urgency", urgency);
+      formData.append("description", description);
+      await createServiceRequest(formData);
+      setSuccess("Service request submitted successfully!");
+      setServiceType("");
+      setPreferredSchedule("");
+      setUrgency("low");
+      setDescription("");
+      setServiceRequests(await getMyServiceRequests());
+    } catch (err: any) {
+      setError(err.message || "Failed to submit service request.");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
+
+  const handleCancel = async (id: string) => {
+    setCancelingId(id);
+    setError("");
+    try {
+      await cancelServiceRequest(id);
+      setServiceRequests((prev) => prev.filter((r) => r.id !== id));
+    } catch (err: any) {
+      setError(err.message || "Failed to cancel service request.");
+    } finally {
+      setCancelingId(null);
+    }
+  };
 
   return (
     <MainLayout userRole="resident">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Service Requests</h1>
-          <p className="text-muted-foreground">Submit and track maintenance and service requests</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Service Requests
+          </h1>
+          <p className="text-muted-foreground">
+            Submit and track maintenance and service requests
+          </p>
         </div>
 
         <Tabs defaultValue="new">
@@ -60,10 +94,14 @@ export default function ServicesPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Submit Service Request</CardTitle>
-                <CardDescription>Fill out the form to request maintenance or utility services</CardDescription>
+                <CardDescription>
+                  Fill out the form to request maintenance or utility services
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {success && <div className="text-green-600">{success}</div>}
+                  {error && <div className="text-red-600">{error}</div>}
                   <div className="space-y-2">
                     <Label htmlFor="service-type">Service Type</Label>
                     <select
@@ -71,6 +109,8 @@ export default function ServicesPage() {
                       name="serviceType"
                       required
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={serviceType}
+                      onChange={(e) => setServiceType(e.target.value)}
                     >
                       <option value="">Select service type</option>
                       <option value="plumbing">Plumbing</option>
@@ -85,17 +125,27 @@ export default function ServicesPage() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="preferred-schedule">Preferred Schedule</Label>
+                    <Label htmlFor="preferred-schedule">
+                      Preferred Schedule
+                    </Label>
                     <select
                       id="preferred-schedule"
                       name="preferredSchedule"
                       required
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={preferredSchedule}
+                      onChange={(e) => setPreferredSchedule(e.target.value)}
                     >
                       <option value="">Select preferred time</option>
-                      <option value="morning">Morning (8:00 AM - 12:00 PM)</option>
-                      <option value="afternoon">Afternoon (1:00 PM - 5:00 PM)</option>
-                      <option value="evening">Evening (6:00 PM - 8:00 PM)</option>
+                      <option value="morning">
+                        Morning (8:00 AM - 12:00 PM)
+                      </option>
+                      <option value="afternoon">
+                        Afternoon (1:00 PM - 5:00 PM)
+                      </option>
+                      <option value="evening">
+                        Evening (6:00 PM - 8:00 PM)
+                      </option>
                       <option value="weekend">Weekend</option>
                       <option value="flexible">Flexible</option>
                     </select>
@@ -107,11 +157,15 @@ export default function ServicesPage() {
                       name="urgency"
                       required
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={urgency}
+                      onChange={(e) => setUrgency(e.target.value)}
                     >
                       <option value="low">Low - Can wait up to a week</option>
                       <option value="medium">Medium - Within 2-3 days</option>
                       <option value="high">High - Within 24 hours</option>
-                      <option value="emergency">Emergency - Immediate attention required</option>
+                      <option value="emergency">
+                        Emergency - Immediate attention required
+                      </option>
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -122,6 +176,8 @@ export default function ServicesPage() {
                       required
                       className="flex min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       placeholder="Please provide a detailed description of the issue or service needed"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
                     />
                   </div>
                   <div className="flex justify-end">
@@ -137,9 +193,12 @@ export default function ServicesPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Your Service Request History</CardTitle>
-                <CardDescription>View and track your service requests</CardDescription>
+                <CardDescription>
+                  View and track your service requests
+                </CardDescription>
               </CardHeader>
               <CardContent>
+                {error && <div className="text-red-600 mb-2">{error}</div>}
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -153,41 +212,22 @@ export default function ServicesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        {
-                          id: "SR-2025-001",
-                          serviceType: "Plumbing",
-                          date: "May 8, 2025",
-                          urgency: "High",
-                          status: "In Progress",
-                        },
-                        {
-                          id: "SR-2025-002",
-                          serviceType: "HVAC",
-                          date: "May 5, 2025",
-                          urgency: "Medium",
-                          status: "Completed",
-                        },
-                        {
-                          id: "SR-2025-003",
-                          serviceType: "Electrical",
-                          date: "May 1, 2025",
-                          urgency: "Low",
-                          status: "Pending",
-                        },
-                      ].map((request, i) => (
-                        <tr key={i} className="border-b">
+                      {serviceRequests.map((request, i) => (
+                        <tr key={request.id || i} className="border-b">
                           <td className="py-3">{request.id}</td>
-                          <td className="py-3">{request.serviceType}</td>
-                          <td className="py-3">{request.date}</td>
+                          <td className="py-3">{request.service_type}</td>
+                          <td className="py-3">
+                            {new Date(request.created_at).toLocaleDateString()}
+                          </td>
                           <td className="py-3">
                             <Badge
                               variant={
-                                request.urgency === "High" || request.urgency === "Emergency"
+                                request.urgency === "emergency" ||
+                                request.urgency === "high"
                                   ? "destructive"
-                                  : request.urgency === "Medium"
-                                    ? "default"
-                                    : "secondary"
+                                  : request.urgency === "medium"
+                                  ? "default"
+                                  : "secondary"
                               }
                             >
                               {request.urgency}
@@ -196,11 +236,11 @@ export default function ServicesPage() {
                           <td className="py-3">
                             <Badge
                               variant={
-                                request.status === "Completed"
+                                request.status === "completed"
                                   ? "default"
-                                  : request.status === "In Progress"
-                                    ? "secondary"
-                                    : "outline"
+                                  : request.status === "in-progress"
+                                  ? "secondary"
+                                  : "outline"
                               }
                             >
                               {request.status}
@@ -208,12 +248,23 @@ export default function ServicesPage() {
                           </td>
                           <td className="py-3">
                             <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setViewRequest(request)}
+                              >
                                 View Details
                               </Button>
-                              {request.status === "Pending" && (
-                                <Button size="sm" variant="destructive">
-                                  Cancel
+                              {request.status === "pending" && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleCancel(request.id)}
+                                  disabled={cancelingId === request.id}
+                                >
+                                  {cancelingId === request.id
+                                    ? "Canceling..."
+                                    : "Cancel"}
                                 </Button>
                               )}
                             </div>
@@ -223,11 +274,46 @@ export default function ServicesPage() {
                     </tbody>
                   </table>
                 </div>
+                {/* Simple Modal for View */}
+                {viewRequest && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                    <div className="bg-white rounded-lg shadow-lg p-6 min-w-[320px] max-w-[90vw]">
+                      <h2 className="text-lg font-bold mb-2">
+                        Service Request Details
+                      </h2>
+                      <div className="mb-2">
+                        <b>Service Type:</b> {viewRequest.service_type}
+                      </div>
+                      <div className="mb-2">
+                        <b>Date:</b>{" "}
+                        {new Date(viewRequest.created_at).toLocaleDateString()}
+                      </div>
+                      <div className="mb-2">
+                        <b>Urgency:</b> {viewRequest.urgency}
+                      </div>
+                      <div className="mb-2">
+                        <b>Status:</b> {viewRequest.status}
+                      </div>
+                      <div className="mb-2">
+                        <b>Description:</b> {viewRequest.description}
+                      </div>
+                      <div className="flex justify-end mt-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setViewRequest(null)}
+                        >
+                          Close
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
     </MainLayout>
-  )
+  );
 }

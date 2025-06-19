@@ -27,7 +27,7 @@ export async function createServiceRequest(formData: FormData) {
     const { data, error } = await supabase
       .from("service_requests")
       .insert({
-        resident_id: user.id,
+        user_id: user.id,
         service_type: serviceType,
         preferred_schedule: preferredSchedule,
         urgency: urgency,
@@ -66,7 +66,7 @@ export async function getMyServiceRequests() {
     const { data, error } = await supabase
       .from("service_requests")
       .select("*")
-      .eq("resident_id", user.id)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -97,7 +97,7 @@ export async function cancelServiceRequest(requestId: string) {
       .from("service_requests")
       .update({ status: "cancelled" })
       .eq("id", requestId)
-      .eq("resident_id", user.id) // Ensure user can only cancel their own requests
+      .eq("user_id", user.id) // Ensure user can only cancel their own requests
 
     if (error) {
       throw new Error(`Failed to cancel service request: ${error.message}`)
