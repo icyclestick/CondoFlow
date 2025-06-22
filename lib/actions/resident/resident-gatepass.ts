@@ -128,4 +128,64 @@ export async function cancelGatepassRequest(requestId: string) {
         console.error("Error canceling gatepass request:", error)
         throw new Error(error instanceof Error ? error.message : "Failed to cancel gatepass request")
     }
+}
+
+// Update a gatepass request (resident can only update pending requests)
+export async function updateGatepassRequest(requestId: string, formData: FormData) {
+    const { user, supabase } = await getAuthenticatedResident()
+
+    try {
+        // Verify the request belongs to the current user and is pending
+        const { data: request, error: fetchError } = await supabase
+            .from("gatepass_requests")
+            .select("id, user_id, status")
+            .eq("id", requestId)
+            .eq("user_id", user.id)
+            .single()
+
+        if (fetchError || !request) {
+            throw new Error("Gatepass request not found or access denied")
+        }
+
+        // Residents can only update pending requests
+        if (request.status !== "pending") {
+            throw new Error("Cannot update gatepass request that is no longer pending")
+        }
+
+        const transportDate = formData.get("transportDate") as string
+        const transportTime = formData.get("transportTime") as string
+        const reason = formData.get("reason") as string
+        const items = formData.get("items") as string // JSON stringified array of items
+        const notes = formData.get("notes") as string
+
+        if (!transportDate || !transportTime || !reason || !items) {
+            throw new Error("Transport date, time, reason, and items are required")
+        }
+
+        const { data, error } = await supabase
+            .from("gatepass_requests")
+            .update({
+                transport_date: transportDate,
+                transport_time: transportTime,
+                reason,
+                items,
+                notes: notes || null,
+                // Keep the original created_at timestamp
+                // updated_at will be automatically updated by the database trigger
+            })
+            .eq("id", requestId)
+            .eq("user_id", user.id)
+            .select()
+            .single()
+
+        if (error) {
+            throw new Error(`Failed to update gatepass request: ${error.message}`)
+        }
+
+        revalidatePath("/resident/gatepass")
+        return { success: true, data }
+    } catch (error) {
+        console.error("Error updating gatepass request:", error)
+        throw new Error(error instanceof Error ? error.message : "Failed to update gatepass request")
+    }
 } 

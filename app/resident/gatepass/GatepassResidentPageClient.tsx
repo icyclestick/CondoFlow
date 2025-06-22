@@ -17,6 +17,7 @@ import {
   createGatepassRequest,
   getMyGatepassRequests,
   cancelGatepassRequest,
+  updateGatepassRequest,
 } from "@/lib/actions/resident/resident-gatepass";
 
 export default function GatepassPageClient({
@@ -39,6 +40,8 @@ export default function GatepassPageClient({
   const [gatepassRequests, setGatepassRequests] = useState<any[]>([]);
   const [viewRequest, setViewRequest] = useState<any | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [editingRequest, setEditingRequest] = useState<any | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Fetch gatepass requests on mount
   React.useEffect(() => {
@@ -112,6 +115,32 @@ export default function GatepassPageClient({
       setError(err.message || "Failed to cancel gatepass request.");
     } finally {
       setCancelingId(null);
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRequest) return;
+
+    setIsEditing(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("transportDate", editingRequest.transport_date);
+      formData.append("transportTime", editingRequest.transport_time);
+      formData.append("reason", editingRequest.reason);
+      formData.append("items", JSON.stringify(editingRequest.items));
+      formData.append("notes", editingRequest.notes || "");
+
+      await updateGatepassRequest(editingRequest.id, formData);
+
+      setGatepassRequests(await getMyGatepassRequests());
+      setEditingRequest(null);
+      setSuccess("Gatepass request updated successfully!");
+    } catch (err: any) {
+      setError(err.message || "Failed to update gatepass request.");
+    } finally {
+      setIsEditing(false);
     }
   };
 
@@ -357,16 +386,25 @@ export default function GatepassPageClient({
                                 View
                               </Button>
                               {request.status === "pending" && (
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => handleCancel(request.id)}
-                                  disabled={cancelingId === request.id}
-                                >
-                                  {cancelingId === request.id
-                                    ? "Canceling..."
-                                    : "Cancel"}
-                                </Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingRequest(request)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleCancel(request.id)}
+                                    disabled={cancelingId === request.id}
+                                  >
+                                    {cancelingId === request.id
+                                      ? "Canceling..."
+                                      : "Cancel"}
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </td>
@@ -395,10 +433,39 @@ export default function GatepassPageClient({
                         <b>Status:</b> {viewRequest.status}
                       </div>
                       <div className="mb-2">
-                        <b>Items:</b>{" "}
-                        {Array.isArray(viewRequest.items)
-                          ? viewRequest.items.join(", ")
-                          : JSON.stringify(viewRequest.items)}
+                        <b>Items:</b>
+                        {(() => {
+                          try {
+                            const items =
+                              typeof viewRequest.items === "string"
+                                ? JSON.parse(viewRequest.items)
+                                : viewRequest.items;
+
+                            if (Array.isArray(items)) {
+                              return (
+                                <ul className="mt-1 ml-4 list-disc">
+                                  {items.map((item, index) => (
+                                    <li key={index}>
+                                      {item.name} (Qty: {item.quantity})
+                                      {item.description &&
+                                        ` - ${item.description}`}
+                                    </li>
+                                  ))}
+                                </ul>
+                              );
+                            } else {
+                              return (
+                                <span className="ml-2">
+                                  Invalid items format
+                                </span>
+                              );
+                            }
+                          } catch (error) {
+                            return (
+                              <span className="ml-2">Error parsing items</span>
+                            );
+                          }
+                        })()}
                       </div>
                       <div className="mb-2">
                         <b>Notes:</b> {viewRequest.notes || "-"}
@@ -420,6 +487,239 @@ export default function GatepassPageClient({
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Modal */}
+      {editingRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 min-w-[600px] max-w-[90vw] max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold mb-4">Edit Gatepass Request</h2>
+            <form onSubmit={handleEdit} className="space-y-4">
+              {error && <div className="text-red-600">{error}</div>}
+              {success && <div className="text-green-600">{success}</div>}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-transport-date">Transport Date</Label>
+                  <input
+                    id="edit-transport-date"
+                    type="date"
+                    value={editingRequest.transport_date}
+                    onChange={(e) =>
+                      setEditingRequest({
+                        ...editingRequest,
+                        transport_date: e.target.value,
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-transport-time">Transport Time</Label>
+                  <select
+                    id="edit-transport-time"
+                    value={editingRequest.transport_time}
+                    onChange={(e) =>
+                      setEditingRequest({
+                        ...editingRequest,
+                        transport_time: e.target.value,
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value="">Select a time</option>
+                    <option value="morning">
+                      Morning (8:00 AM - 12:00 PM)
+                    </option>
+                    <option value="afternoon">
+                      Afternoon (1:00 PM - 5:00 PM)
+                    </option>
+                    <option value="evening">Evening (6:00 PM - 9:00 PM)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-reason">Reason for Gatepass</Label>
+                <select
+                  id="edit-reason"
+                  value={editingRequest.reason}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      reason: e.target.value,
+                    })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  required
+                >
+                  <option value="">Select a reason</option>
+                  <option value="delivery">Delivery of new items</option>
+                  <option value="removal">Removal of items</option>
+                  <option value="repair">Item for repair</option>
+                  <option value="other">Other (please specify)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Items to Declare</Label>
+                <div className="rounded-md border">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm font-medium text-muted-foreground">
+                        <th className="p-2">Item Name</th>
+                        <th className="p-2">Quantity</th>
+                        <th className="p-2">Description</th>
+                        <th className="p-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const items =
+                          typeof editingRequest.items === "string"
+                            ? JSON.parse(editingRequest.items)
+                            : editingRequest.items;
+                        return items.map((item: any, idx: number) => (
+                          <tr className="border-b" key={idx}>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                value={item.name}
+                                onChange={(e) => {
+                                  const newItems = [...items];
+                                  newItems[idx].name = e.target.value;
+                                  setEditingRequest({
+                                    ...editingRequest,
+                                    items: newItems,
+                                  });
+                                }}
+                                className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                placeholder="Item name"
+                                required
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const newItems = [...items];
+                                  newItems[idx].quantity = Number(
+                                    e.target.value
+                                  );
+                                  setEditingRequest({
+                                    ...editingRequest,
+                                    items: newItems,
+                                  });
+                                }}
+                                className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                placeholder="Qty"
+                                required
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                value={item.description}
+                                onChange={(e) => {
+                                  const newItems = [...items];
+                                  newItems[idx].description = e.target.value;
+                                  setEditingRequest({
+                                    ...editingRequest,
+                                    items: newItems,
+                                  });
+                                }}
+                                className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                placeholder="Brief description"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                type="button"
+                                onClick={() => {
+                                  const newItems = items.filter(
+                                    (_: any, i: number) => i !== idx
+                                  );
+                                  setEditingRequest({
+                                    ...editingRequest,
+                                    items: newItems,
+                                  });
+                                }}
+                                disabled={items.length === 1}
+                              >
+                                Remove
+                              </Button>
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                      <tr>
+                        <td colSpan={4} className="p-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => {
+                              const items =
+                                typeof editingRequest.items === "string"
+                                  ? JSON.parse(editingRequest.items)
+                                  : editingRequest.items;
+                              const newItems = [
+                                ...items,
+                                { name: "", quantity: 1, description: "" },
+                              ];
+                              setEditingRequest({
+                                ...editingRequest,
+                                items: newItems,
+                              });
+                            }}
+                          >
+                            Add Another Item
+                          </Button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-notes">Additional Notes (Optional)</Label>
+                <textarea
+                  id="edit-notes"
+                  value={editingRequest.notes || ""}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      notes: e.target.value,
+                    })
+                  }
+                  className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Any additional information about the items or transport"
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingRequest(null)}
+                  disabled={isEditing}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isEditing}>
+                  {isEditing ? "Updating..." : "Update Request"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 }

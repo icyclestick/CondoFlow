@@ -14,9 +14,17 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   createServiceRequest,
   getMyServiceRequests,
   cancelServiceRequest,
+  updateServiceRequest,
 } from "@/lib/actions/resident/services";
 
 export default function ServicesPageClient({
@@ -36,6 +44,8 @@ export default function ServicesPageClient({
   const [description, setDescription] = useState("");
   const [viewRequest, setViewRequest] = useState<any | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [editingRequest, setEditingRequest] = useState<any | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     getMyServiceRequests().then(setServiceRequests);
@@ -76,6 +86,31 @@ export default function ServicesPageClient({
       setError(err.message || "Failed to cancel service request.");
     } finally {
       setCancelingId(null);
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRequest) return;
+
+    setIsEditing(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("serviceType", editingRequest.service_type);
+      formData.append("preferredSchedule", editingRequest.preferred_schedule);
+      formData.append("urgency", editingRequest.urgency);
+      formData.append("description", editingRequest.description);
+
+      await updateServiceRequest(editingRequest.id, formData);
+
+      setServiceRequests(await getMyServiceRequests());
+      setEditingRequest(null);
+      setSuccess("Service request updated successfully!");
+    } catch (err: any) {
+      setError(err.message || "Failed to update service request.");
+    } finally {
+      setIsEditing(false);
     }
   };
 
@@ -255,19 +290,33 @@ export default function ServicesPageClient({
                           <td className="py-3">
                             <div className="flex space-x-2">
                               <Button
+                                size="sm"
                                 variant="outline"
-                                size="icon"
                                 onClick={() => setViewRequest(request)}
                               >
-                                <span className="sr-only">View</span>
+                                View
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => handleCancel(request.id)}
-                              >
-                                <span className="sr-only">Cancel</span>
-                              </Button>
+                              {request.status === "pending" && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingRequest(request)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleCancel(request.id)}
+                                    disabled={cancelingId === request.id}
+                                  >
+                                    {cancelingId === request.id
+                                      ? "Cancelling..."
+                                      : "Cancel"}
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -280,6 +329,225 @@ export default function ServicesPageClient({
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={!!viewRequest} onOpenChange={() => setViewRequest(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Service Request Details</DialogTitle>
+          </DialogHeader>
+          {viewRequest && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Request ID</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewRequest.id}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Service Type</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewRequest.service_type}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Urgency</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        viewRequest.urgency === "emergency" ||
+                        viewRequest.urgency === "high"
+                          ? "destructive"
+                          : viewRequest.urgency === "medium"
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
+                      {viewRequest.urgency}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        viewRequest.status === "completed"
+                          ? "default"
+                          : viewRequest.status === "in-progress"
+                          ? "secondary"
+                          : "outline"
+                      }
+                    >
+                      {viewRequest.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Created Date</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(viewRequest.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">
+                    Preferred Schedule
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewRequest.preferred_schedule || "Not specified"}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Description</Label>
+                <p className="text-sm text-muted-foreground">
+                  {viewRequest.description}
+                </p>
+              </div>
+              {viewRequest.assigned_to && (
+                <div>
+                  <Label className="text-sm font-medium">Assigned To</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewRequest.assigned_to}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewRequest(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Request Modal */}
+      <Dialog
+        open={!!editingRequest}
+        onOpenChange={() => setEditingRequest(null)}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Service Request</DialogTitle>
+          </DialogHeader>
+          {editingRequest && (
+            <form onSubmit={handleEdit} className="space-y-6">
+              {error && <div className="text-red-600">{error}</div>}
+              {success && <div className="text-green-600">{success}</div>}
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-service-type">Service Type</Label>
+                <select
+                  id="edit-service-type"
+                  name="serviceType"
+                  required
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={editingRequest.service_type}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      service_type: e.target.value,
+                    })
+                  }
+                >
+                  <option value="plumbing">Plumbing</option>
+                  <option value="electrical">Electrical</option>
+                  <option value="hvac">HVAC/Air Conditioning</option>
+                  <option value="appliance">Appliance Repair</option>
+                  <option value="carpentry">Carpentry</option>
+                  <option value="painting">Painting</option>
+                  <option value="cleaning">Deep Cleaning</option>
+                  <option value="pest-control">Pest Control</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-preferred-schedule">
+                  Preferred Schedule
+                </Label>
+                <select
+                  id="edit-preferred-schedule"
+                  name="preferredSchedule"
+                  required
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={editingRequest.preferred_schedule}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      preferred_schedule: e.target.value,
+                    })
+                  }
+                >
+                  <option value="morning">Morning (8:00 AM - 12:00 PM)</option>
+                  <option value="afternoon">
+                    Afternoon (1:00 PM - 5:00 PM)
+                  </option>
+                  <option value="evening">Evening (6:00 PM - 8:00 PM)</option>
+                  <option value="weekend">Weekend</option>
+                  <option value="flexible">Flexible</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-urgency">Urgency Level</Label>
+                <select
+                  id="edit-urgency"
+                  name="urgency"
+                  required
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={editingRequest.urgency}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      urgency: e.target.value,
+                    })
+                  }
+                >
+                  <option value="low">Low - Can wait up to a week</option>
+                  <option value="medium">Medium - Within 2-3 days</option>
+                  <option value="high">High - Within 24 hours</option>
+                  <option value="emergency">
+                    Emergency - Immediate attention required
+                  </option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <textarea
+                  id="edit-description"
+                  name="description"
+                  required
+                  className="flex min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Please provide a detailed description of the issue or service needed"
+                  value={editingRequest.description}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      description: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingRequest(null)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isEditing}>
+                  {isEditing ? "Updating..." : "Update Request"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

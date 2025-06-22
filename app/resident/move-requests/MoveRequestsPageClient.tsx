@@ -15,9 +15,17 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   createMoveRequest,
   getMyMoveRequests,
   cancelMoveRequest,
+  updateMyMoveRequest,
 } from "@/lib/actions/resident/resident-move-requests";
 
 export default function MoveRequestsPageClient({
@@ -39,6 +47,8 @@ export default function MoveRequestsPageClient({
   const [moveRequests, setMoveRequests] = useState<any[]>([]);
   const [viewRequest, setViewRequest] = useState<any | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [editingRequest, setEditingRequest] = useState<any | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Generate hourly time slots from 8:00 AM to 6:00 PM
   const timeSlots = Array.from({ length: 10 }, (_, i) => {
@@ -94,6 +104,32 @@ export default function MoveRequestsPageClient({
       setError(err.message || "Failed to cancel move request.");
     } finally {
       setCancelingId(null);
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRequest) return;
+
+    setIsEditing(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("moveDate", editingRequest.move_date);
+      formData.append("timeSlot", editingRequest.time_slot);
+      formData.append("movingCompany", editingRequest.moving_company || "");
+      formData.append("reason", editingRequest.reason);
+      formData.append("largeItems", editingRequest.large_items || "");
+
+      await updateMyMoveRequest(editingRequest.id, formData);
+
+      setMoveRequests(await getMyMoveRequests());
+      setEditingRequest(null);
+      setSuccess("Move request updated successfully!");
+    } catch (err: any) {
+      setError(err.message || "Failed to update move request.");
+    } finally {
+      setIsEditing(false);
     }
   };
 
@@ -264,16 +300,25 @@ export default function MoveRequestsPageClient({
                                 View
                               </Button>
                               {request.status === "pending" && (
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => handleCancel(request.id)}
-                                  disabled={cancelingId === request.id}
-                                >
-                                  {cancelingId === request.id
-                                    ? "Cancelling..."
-                                    : "Cancel"}
-                                </Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingRequest(request)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleCancel(request.id)}
+                                    disabled={cancelingId === request.id}
+                                  >
+                                    {cancelingId === request.id
+                                      ? "Cancelling..."
+                                      : "Cancel"}
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </td>
@@ -328,6 +373,134 @@ export default function MoveRequestsPageClient({
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Request Modal */}
+      <Dialog
+        open={!!editingRequest}
+        onOpenChange={() => setEditingRequest(null)}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Move Request</DialogTitle>
+          </DialogHeader>
+          {editingRequest && (
+            <form onSubmit={handleEdit} className="space-y-6">
+              {error && <div className="text-red-600">{error}</div>}
+              {success && <div className="text-green-600">{success}</div>}
+
+              <div className="space-y-2">
+                <Label>Move Type</Label>
+                <div className="text-sm text-muted-foreground">
+                  {editingRequest.type === "move-in" ? "Move-in" : "Move-out"}
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-move-date">Move Date</Label>
+                  <input
+                    id="edit-move-date"
+                    type="date"
+                    value={editingRequest.move_date}
+                    onChange={(e) =>
+                      setEditingRequest({
+                        ...editingRequest,
+                        move_date: e.target.value,
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-move-time">Time Slot</Label>
+                  <select
+                    id="edit-move-time"
+                    value={editingRequest.time_slot}
+                    onChange={(e) =>
+                      setEditingRequest({
+                        ...editingRequest,
+                        time_slot: e.target.value,
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    {timeSlots.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-movers">Moving Company (Optional)</Label>
+                <input
+                  id="edit-movers"
+                  type="text"
+                  value={editingRequest.moving_company || ""}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      moving_company: e.target.value,
+                    })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Enter moving company name"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-reason">Reason for Move</Label>
+                <textarea
+                  id="edit-reason"
+                  value={editingRequest.reason}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      reason: e.target.value,
+                    })
+                  }
+                  className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Please provide a brief reason for your move"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-items">Large Items to Move</Label>
+                <textarea
+                  id="edit-items"
+                  value={editingRequest.large_items || ""}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      large_items: e.target.value,
+                    })
+                  }
+                  className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="List any large items that will require special handling (e.g., sofa, refrigerator)"
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingRequest(null)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isEditing}>
+                  {isEditing ? "Updating..." : "Update Request"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
