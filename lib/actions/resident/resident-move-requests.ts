@@ -169,9 +169,7 @@ export async function updateMyMoveRequest(requestId: string, formData: FormData)
         const reason = formData.get("reason") as string
         const largeItems = formData.get("largeItems") as string
 
-        const updateData: any = {
-            updated_at: new Date().toISOString(),
-        }
+        const updateData: any = {}
 
         if (moveDate) updateData.move_date = moveDate
         if (timeSlot) updateData.time_slot = timeSlot
@@ -202,7 +200,7 @@ export async function cancelMoveRequest(requestId: string) {
     const { user, supabase } = await getAuthenticatedResident()
 
     try {
-        // Verify the request belongs to the current user and is pending
+        // Verify the request belongs to the current user
         const { data: request, error: fetchError } = await supabase
             .from("move_requests")
             .select("id, user_id, status")
@@ -214,13 +212,16 @@ export async function cancelMoveRequest(requestId: string) {
             throw new Error("Move request not found or access denied")
         }
 
+        // Residents can only cancel pending requests
         if (request.status !== "pending") {
             throw new Error("Cannot cancel move request that is no longer pending")
         }
 
         const { error } = await supabase
             .from("move_requests")
-            .delete()
+            .update({
+                status: "cancelled",
+            })
             .eq("id", requestId)
             .eq("user_id", user.id)
 

@@ -340,7 +340,9 @@ export default function AdminGatepassPage({
                                 ? "outline"
                                 : request.status === "completed"
                                 ? "secondary"
-                                : "destructive"
+                                : request.status === "cancelled"
+                                ? "destructive"
+                                : "outline"
                             }
                           >
                             {request.status}
@@ -442,7 +444,9 @@ export default function AdminGatepassPage({
                           ? "outline"
                           : selectedRequest.status === "completed"
                           ? "secondary"
-                          : "destructive"
+                          : selectedRequest.status === "cancelled"
+                          ? "destructive"
+                          : "outline"
                       }
                     >
                       {selectedRequest.status}

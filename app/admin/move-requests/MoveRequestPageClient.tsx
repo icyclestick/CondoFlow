@@ -376,7 +376,9 @@ export default function AdminMoveRequestsPage({
                                     ? "secondary"
                                     : request.status === "pending"
                                     ? "outline"
-                                    : "destructive"
+                                    : request.status === "cancelled"
+                                    ? "destructive"
+                                    : "outline"
                                 }
                               >
                                 {request.status}
@@ -700,7 +702,9 @@ export default function AdminMoveRequestsPage({
                           ? "secondary"
                           : selectedRequest.status === "pending"
                           ? "outline"
-                          : "destructive"
+                          : selectedRequest.status === "cancelled"
+                          ? "destructive"
+                          : "outline"
                       }
                     >
                       {selectedRequest.status}

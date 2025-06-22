@@ -220,25 +220,15 @@ export async function cancelAmenityBooking(bookingId: string) {
             throw new Error("Booking not found or access denied")
         }
 
-        // Check if booking is in the future
-        const bookingDate = new Date(booking.booking_date)
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-
-        if (bookingDate <= today) {
-            throw new Error("Cannot cancel bookings for today or past dates")
-        }
-
         // Residents can only cancel pending or approved bookings
         if (!["pending", "approved"].includes(booking.status)) {
-            throw new Error("Cannot cancel booking that is already completed or rejected")
+            throw new Error("Cannot cancel booking that is already completed, cancelled, or rejected")
         }
 
         const { error } = await supabase
             .from("amenity_bookings")
             .update({
                 status: "cancelled",
-                updated_at: new Date().toISOString(),
             })
             .eq("id", bookingId)
             .eq("user_id", user.id)
@@ -277,14 +267,14 @@ export async function updateAmenityBooking(bookingId: string, formData: FormData
             throw new Error("Cannot update booking that is no longer pending")
         }
 
+        const bookingDate = formData.get("date") as string
         const timeSlot = formData.get("time") as string
         const guests = Number.parseInt(formData.get("guests") as string)
         const notes = formData.get("notes") as string
 
-        const updateData: any = {
-            updated_at: new Date().toISOString(),
-        }
+        const updateData: any = {}
 
+        if (bookingDate) updateData.booking_date = bookingDate
         if (timeSlot) updateData.time_slot = timeSlot
         if (guests) updateData.guests = guests
         if (notes !== null) updateData.notes = notes

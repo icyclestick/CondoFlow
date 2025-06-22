@@ -42,6 +42,7 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/toaster";
 import { createClient } from "@/lib/supabase/client";
 
 interface MainLayoutProps {
@@ -216,6 +217,7 @@ export function MainLayout({ children, userRole, userName }: MainLayoutProps) {
           <main className="p-6">{children}</main>
         </div>
       </div>
+      <Toaster />
     </SidebarProvider>
   );
 }

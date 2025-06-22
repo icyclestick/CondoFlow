@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   Calendar,
@@ -21,6 +24,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import {
   getMyProfile,
@@ -34,34 +38,142 @@ import { getMyMoveRequests } from "@/lib/actions/resident/resident-move-requests
 import { getMyAmenityStats } from "@/lib/actions/resident/resident-amenities";
 import { getMyAmenityBookings } from "@/lib/actions/resident/resident-amenities";
 
-export default async function ResidentDashboard() {
-  type Unit = {
-    id: string;
-    block: string;
-    unit_number: string;
-    status: string;
-    monthly_fee: number;
-  };
-  type Booking = {
-    id: string;
-    booking_date: string;
-    time_slot: string;
-    status: string;
-    amenities: { name: string };
-  };
-  type RecentActivity = {
-    title: string;
-    description: string;
-    date: string;
-  };
-  type RequestTableRow = {
-    type: string;
-    description: string;
-    date: string;
-    status: string;
-  };
+export default function ResidentDashboard() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [data, setData] = useState<any>({});
+  const [error, setError] = useState("");
 
-  const [
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const [
+          profile,
+          unitInfo,
+          payments,
+          serviceRequests,
+          visitorRequests,
+          complaints,
+          moveRequests,
+          amenityStats,
+          amenityBookings,
+        ] = await Promise.all([
+          getMyProfile(),
+          getMyUnitInfo(),
+          getMyPayments(),
+          getMyServiceRequests(),
+          getMyVisitorRequests(),
+          getMyComplaints(),
+          getMyMoveRequests(),
+          getMyAmenityStats(),
+          getMyAmenityBookings(),
+        ]);
+
+        setData({
+          profile,
+          unitInfo,
+          payments,
+          serviceRequests,
+          visitorRequests,
+          complaints,
+          moveRequests,
+          amenityStats,
+          amenityBookings,
+        });
+      } catch (err) {
+        setError("Failed to load dashboard data");
+        console.error("Dashboard error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <MainLayout userRole="resident" userName="Resident">
+        <div className="space-y-6">
+          <div>
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-4" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-16 mb-1" />
+                  <Skeleton className="h-3 w-20" />
+                </CardContent>
+                <CardFooter>
+                  <Skeleton className="h-8 w-24" />
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {[1, 2].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className="h-4 w-48" />
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[1, 2, 3, 4].map((j) => (
+                      <Skeleton key={j} className="h-16 w-full" />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-48" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center space-x-4">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-8 w-20" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout userRole="resident" userName="Resident">
+        <div className="space-y-6">
+          <div className="text-center py-8">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()}>Try Again</Button>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const {
     profile,
     unitInfo,
     payments,
@@ -71,23 +183,13 @@ export default async function ResidentDashboard() {
     moveRequests,
     amenityStats,
     amenityBookings,
-  ] = await Promise.all([
-    getMyProfile(),
-    getMyUnitInfo(),
-    getMyPayments(),
-    getMyServiceRequests(),
-    getMyVisitorRequests(),
-    getMyComplaints(),
-    getMyMoveRequests(),
-    getMyAmenityStats(),
-    getMyAmenityBookings(),
-  ]);
+  } = data;
 
   // Get next upcoming amenity booking
   const now = new Date();
-  const nextBooking: Booking | null =
-    (amenityBookings as Booking[])
-      .filter(
+  const nextBooking =
+    (amenityBookings as any[])
+      ?.filter(
         (b) => new Date(b.booking_date) >= now && b.status !== "cancelled"
       )
       .sort(
@@ -97,7 +199,8 @@ export default async function ResidentDashboard() {
       )[0] || null;
 
   // Example: Get next payment due
-  const nextPayment = payments.find((p: any) => p.status === "pending") || null;
+  const nextPayment =
+    payments?.find((p: any) => p.status === "pending") || null;
 
   // Example: Pending requests count
   const pendingRequestsCount = [
@@ -107,11 +210,8 @@ export default async function ResidentDashboard() {
     ...(visitorRequests?.filter((r: any) => r.status === "pending") || []),
   ].length;
 
-  // Example: Recent activity (combine from different sources, here just a placeholder)
-  const recentActivity: RecentActivity[] = [];
-
   // Example: Requests table (combine from different sources)
-  const requestsTable: RequestTableRow[] = [
+  const requestsTable = [
     ...(serviceRequests?.map((r: any) => ({
       type: "Service Request",
       description: r.service_type,
@@ -139,7 +239,10 @@ export default async function ResidentDashboard() {
   ];
 
   return (
-    <MainLayout userRole={profile.role} userName={profile.full_name}>
+    <MainLayout
+      userRole={profile?.role || "resident"}
+      userName={profile?.full_name || "Resident"}
+    >
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -166,7 +269,9 @@ export default async function ResidentDashboard() {
                 "block" in pu &&
                 "unit_number" in pu
               ) {
-                return `Here's what's happening with your unit: Block ${pu.block}, Unit ${pu.unit_number}`;
+                return `Here's what's happening with your unit: Block ${
+                  (pu as any).block
+                }, Unit ${(pu as any).unit_number}`;
               } else {
                 return "Here's what's happening with your unit";
               }
@@ -302,29 +407,9 @@ export default async function ResidentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* TODO: Build recent activity from real data */}
-                {recentActivity.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No recent activity
-                  </p>
-                ) : (
-                  recentActivity.map((activity, i) => (
-                    <div key={i} className="flex items-start gap-4">
-                      <div className="rounded-full bg-primary/10 p-2">
-                        {/* <activity.icon className="h-4 w-4 text-primary" /> */}
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium">{activity.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.description}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.date}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
+                <p className="text-sm text-muted-foreground">
+                  No recent activity
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -358,10 +443,12 @@ export default async function ResidentDashboard() {
                       </td>
                     </tr>
                   ) : (
-                    requestsTable.map((request, i) => (
+                    requestsTable.slice(0, 5).map((request, i) => (
                       <tr key={i} className="border-b">
                         <td className="py-3">{request.type}</td>
-                        <td className="py-3">{request.description}</td>
+                        <td className="py-3 max-w-xs truncate">
+                          {request.description}
+                        </td>
                         <td className="py-3">{request.date}</td>
                         <td className="py-3">
                           <Badge
@@ -377,8 +464,8 @@ export default async function ResidentDashboard() {
                           </Badge>
                         </td>
                         <td className="py-3">
-                          <Button size="sm" variant="outline">
-                            View Details
+                          <Button size="sm" variant="outline" asChild>
+                            <Link href="/resident/requests">View Details</Link>
                           </Button>
                         </td>
                       </tr>
@@ -389,9 +476,11 @@ export default async function ResidentDashboard() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" size="sm" className="ml-auto">
-              View All Requests
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Button variant="outline" size="sm" asChild className="ml-auto">
+              <Link href="/resident/requests">
+                View All Requests
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </Button>
           </CardFooter>
         </Card>

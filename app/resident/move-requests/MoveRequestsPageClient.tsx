@@ -88,7 +88,8 @@ export default function MoveRequestsPageClient({
     setError("");
     try {
       await cancelMoveRequest(id);
-      setMoveRequests((prev) => prev.filter((r) => r.id !== id));
+      // Refresh move requests instead of filtering
+      setMoveRequests(await getMyMoveRequests());
     } catch (err: any) {
       setError(err.message || "Failed to cancel move request.");
     } finally {
@@ -245,6 +246,8 @@ export default function MoveRequestsPageClient({
                                   ? "secondary"
                                   : request.status === "approved"
                                   ? "default"
+                                  : request.status === "cancelled"
+                                  ? "destructive"
                                   : "outline"
                               }
                             >
