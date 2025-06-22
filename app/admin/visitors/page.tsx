@@ -1,9 +1,9 @@
 import { Suspense } from "react";
-import { VisitorsPageClient } from "./VisitorsPageClient";
-import { getMyProfile } from "@/lib/actions/resident/resident-profile";
+import VisitorsPageClient from "./VisitorsPageClient";
+import { getCurrentUserProfile } from "@/lib/actions/shared/profile";
 
 export default async function AdminVisitorsPage() {
-  const profile = await getMyProfile();
+  const profile = await getCurrentUserProfile();
 
   return (
     <Suspense fallback={<div>Loading...</div>}>
@@ -13,4 +13,4 @@ export default async function AdminVisitorsPage() {
       />
     </Suspense>
   );
-} 
+}

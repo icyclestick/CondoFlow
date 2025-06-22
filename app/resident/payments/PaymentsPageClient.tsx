@@ -11,13 +11,65 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, CreditCard, DollarSign } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Download, CreditCard, DollarSign, Receipt } from "lucide-react";
 import {
   getMyPayments,
   confirmPayment,
   getMyPaymentStats,
+  getPaymentReceipt,
 } from "@/lib/actions/resident/resident-payments";
+
+// Type definitions
+interface Payment {
+  id: string;
+  amount: number;
+  payment_type: string;
+  due_date: string;
+  payment_date: string | null;
+  payment_method: string | null;
+  status: string;
+  description?: string;
+  units: {
+    block: string;
+    unit_number: string;
+  };
+}
+
+interface PaymentStats {
+  totalPaid: number;
+  outstandingAmount: number;
+  overdueAmount: number;
+  outstandingCount: number;
+  overdueCount: number;
+  totalPayments: number;
+}
+
+const PAYMENT_METHODS = [
+  { value: "bank-transfer", label: "Bank Transfer" },
+  { value: "credit-card", label: "Credit Card" },
+  { value: "debit-card", label: "Debit Card" },
+  { value: "cash", label: "Cash" },
+  { value: "check", label: "Check" },
+  { value: "online-payment", label: "Online Payment" },
+];
+
+// Format currency in Philippine Peso
+const formatCurrency = (amount: number) => {
+  return `₱${amount.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
 
 export default function PaymentsPageClient({
   userName,
@@ -26,20 +78,34 @@ export default function PaymentsPageClient({
   userName: string;
   userRole: "admin" | "resident";
 }) {
-  const [payments, setPayments] = useState([]);
-  const [stats, setStats] = useState<any>(null);
-  const [selectedPayment, setSelectedPayment] = useState<any | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [stats, setStats] = useState<PaymentStats | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [paying, setPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showReceipt, setShowReceipt] = useState<Payment | null>(null);
+  const [receiptData, setReceiptData] = useState<any>(null);
 
   useEffect(() => {
-    getMyPayments().then(setPayments);
-    getMyPaymentStats().then(setStats);
+    fetchData();
   }, [success]);
 
-  const handlePayNow = (payment: any) => {
+  const fetchData = async () => {
+    try {
+      const [paymentsData, statsData] = await Promise.all([
+        getMyPayments(),
+        getMyPaymentStats(),
+      ]);
+      setPayments(paymentsData);
+      setStats(statsData);
+    } catch (error) {
+      console.error("Error fetching payment data:", error);
+    }
+  };
+
+  const handlePayNow = (payment: Payment) => {
     setSelectedPayment(payment);
     setPaymentMethod("");
     setError("");
@@ -62,10 +128,20 @@ export default function PaymentsPageClient({
     }
   };
 
+  const handleViewReceipt = async (payment: Payment) => {
+    try {
+      const receipt = await getPaymentReceipt(payment.id);
+      setReceiptData(receipt);
+      setShowReceipt(payment);
+    } catch (err: any) {
+      setError(err.message || "Failed to load receipt.");
+    }
+  };
+
   const outstandingPayments = payments.filter(
-    (p: any) => p.status === "pending" || p.status === "due"
+    (p) => p.status === "pending" || p.status === "overdue"
   );
-  const paidPayments = payments.filter((p: any) => p.status === "paid");
+  const paidPayments = payments.filter((p) => p.status === "paid");
 
   return (
     <MainLayout userRole={userRole} userName={userName}>
@@ -87,12 +163,7 @@ export default function PaymentsPageClient({
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {stats
-                  ? `$${stats.outstandingAmount?.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}`
-                  : "-"}
+                {stats ? formatCurrency(stats.outstandingAmount) : "-"}
               </div>
               <p className="text-xs text-muted-foreground">
                 {stats && stats.outstandingCount > 0
@@ -109,20 +180,18 @@ export default function PaymentsPageClient({
             <CardContent>
               <div className="text-2xl font-bold">
                 {stats
-                  ? `$${payments
-                      .filter(
-                        (p: any) =>
-                          p.status === "paid" &&
-                          new Date(p.payment_date).getMonth() ===
-                            new Date().getMonth() &&
-                          new Date(p.payment_date).getFullYear() ===
-                            new Date().getFullYear()
-                      )
-                      .reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
-                      .toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}`
+                  ? formatCurrency(
+                      payments
+                        .filter(
+                          (p) =>
+                            p.status === "paid" &&
+                            new Date(p.payment_date!).getMonth() ===
+                              new Date().getMonth() &&
+                            new Date(p.payment_date!).getFullYear() ===
+                              new Date().getFullYear()
+                        )
+                        .reduce((sum, p) => sum + (p.amount || 0), 0)
+                    )
                   : "-"}
               </div>
               <p className="text-xs text-muted-foreground">Paid this month</p>
@@ -138,18 +207,16 @@ export default function PaymentsPageClient({
             <CardContent>
               <div className="text-2xl font-bold">
                 {stats
-                  ? `$${payments
-                      .filter(
-                        (p: any) =>
-                          p.status === "paid" &&
-                          new Date(p.payment_date).getFullYear() ===
-                            new Date().getFullYear()
-                      )
-                      .reduce((sum: number, p: any) => sum + (p.amount || 0), 0)
-                      .toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}`
+                  ? formatCurrency(
+                      payments
+                        .filter(
+                          (p) =>
+                            p.status === "paid" &&
+                            new Date(p.payment_date!).getFullYear() ===
+                              new Date().getFullYear()
+                        )
+                        .reduce((sum, p) => sum + (p.amount || 0), 0)
+                    )
                   : "-"}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -199,16 +266,17 @@ export default function PaymentsPageClient({
                           </td>
                         </tr>
                       ) : (
-                        outstandingPayments.map((payment: any) => (
+                        outstandingPayments.map((payment) => (
                           <tr key={payment.id} className="border-b">
                             <td className="py-3">
-                              {payment.type ||
-                                payment.description ||
-                                payment.payment_type ||
-                                "-"}
+                              <div>
+                                <div className="font-medium">
+                                  {payment.payment_type || "-"}
+                                </div>
+                              </div>
                             </td>
                             <td className="py-3 font-medium">
-                              ${payment.amount?.toFixed(2)}
+                              {formatCurrency(payment.amount)}
                             </td>
                             <td className="py-3">
                               {payment.due_date
@@ -218,7 +286,15 @@ export default function PaymentsPageClient({
                                 : "-"}
                             </td>
                             <td className="py-3">
-                              <Badge variant="outline">{payment.status}</Badge>
+                              <Badge
+                                variant={
+                                  payment.status === "overdue"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                              >
+                                {payment.status}
+                              </Badge>
                             </td>
                             <td className="py-3">
                               <Button
@@ -239,46 +315,235 @@ export default function PaymentsPageClient({
                     </tbody>
                   </table>
                 </div>
-                {/* Fake Payment Modal */}
-                {selectedPayment && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-                    <div className="bg-white rounded-lg shadow-lg p-6 min-w-[320px] max-w-[90vw]">
-                      <h2 className="text-lg font-bold mb-2">
-                        Pay{" "}
-                        {selectedPayment.type ||
-                          selectedPayment.description ||
-                          selectedPayment.payment_type ||
-                          "-"}
-                      </h2>
-                      <div className="mb-2">
-                        Amount: <b>${selectedPayment.amount?.toFixed(2)}</b>
-                      </div>
-                      <div className="mb-2">
-                        <label htmlFor="paymentMethod">Payment Method:</label>
-                        <select
-                          id="paymentMethod"
-                          value={paymentMethod}
-                          onChange={(e) => setPaymentMethod(e.target.value)}
-                        >
-                          <option value="">Select a payment method</option>
-                          {/* Add your payment method options here */}
-                        </select>
-                      </div>
-                      <div className="mt-4">
-                        <Button
-                          onClick={handleConfirmPayment}
-                          disabled={paying}
-                        >
-                          {paying ? "Processing..." : "Confirm Payment"}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="history" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment History</CardTitle>
+                <CardDescription>
+                  Your completed payment transactions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm font-medium text-muted-foreground">
+                        <th className="pb-2">Type</th>
+                        <th className="pb-2">Amount</th>
+                        <th className="pb-2">Payment Date</th>
+                        <th className="pb-2">Method</th>
+                        <th className="pb-2">Status</th>
+                        <th className="pb-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paidPayments.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="py-3 text-center text-muted-foreground"
+                          >
+                            No payment history found.
+                          </td>
+                        </tr>
+                      ) : (
+                        paidPayments.map((payment) => (
+                          <tr key={payment.id} className="border-b">
+                            <td className="py-3">
+                              <div>
+                                <div className="font-medium">
+                                  {payment.payment_type || "-"}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 font-medium">
+                              {formatCurrency(payment.amount)}
+                            </td>
+                            <td className="py-3">
+                              {payment.payment_date
+                                ? new Date(
+                                    payment.payment_date
+                                  ).toLocaleDateString()
+                                : "-"}
+                            </td>
+                            <td className="py-3">
+                              {payment.payment_method || "-"}
+                            </td>
+                            <td className="py-3">
+                              <Badge variant="default">{payment.status}</Badge>
+                            </td>
+                            <td className="py-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleViewReceipt(payment)}
+                              >
+                                <Receipt className="mr-2 h-4 w-4" />
+                                Receipt
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Payment Modal */}
+        {selectedPayment && (
+          <Dialog
+            open={!!selectedPayment}
+            onOpenChange={() => setSelectedPayment(null)}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Make Payment</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium">Payment Type:</span>
+                    <span>{selectedPayment.payment_type || "-"}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium">Amount:</span>
+                    <span className="text-lg font-bold">
+                      {formatCurrency(selectedPayment.amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Due Date:</span>
+                    <span>
+                      {selectedPayment.due_date
+                        ? new Date(
+                            selectedPayment.due_date
+                          ).toLocaleDateString()
+                        : "-"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentMethod">Payment Method:</Label>
+                  <select
+                    id="paymentMethod"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">Select a payment method</option>
+                    {PAYMENT_METHODS.map((method) => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {error && <div className="text-red-600 text-sm">{error}</div>}
+                {success && (
+                  <div className="text-green-600 text-sm">{success}</div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSelectedPayment(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmPayment}
+                  disabled={paying || !paymentMethod}
+                >
+                  {paying ? "Processing..." : "Confirm Payment"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Receipt Modal */}
+        {showReceipt && receiptData && (
+          <Dialog
+            open={!!showReceipt}
+            onOpenChange={() => setShowReceipt(null)}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Payment Receipt</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-bold">Payment Receipt</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Receipt #{receiptData.id}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Payment Type:</span>
+                      <span>{receiptData.payment_type || "-"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Amount:</span>
+                      <span className="font-bold">
+                        {formatCurrency(receiptData.amount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Payment Date:</span>
+                      <span>
+                        {receiptData.payment_date
+                          ? new Date(
+                              receiptData.payment_date
+                            ).toLocaleDateString()
+                          : "-"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Payment Method:</span>
+                      <span>{receiptData.payment_method || "-"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Unit:</span>
+                      <span>
+                        Block {receiptData.units?.block} - Unit{" "}
+                        {receiptData.units?.unit_number}
+                      </span>
+                    </div>
+                    {receiptData.description && (
+                      <div className="flex justify-between">
+                        <span>Description:</span>
+                        <span>{receiptData.description}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowReceipt(null)}>
+                  Close
+                </Button>
+                <Button>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </MainLayout>
   );

@@ -107,6 +107,7 @@ export async function getMyComplaintStats() {
             openComplaints: data?.filter((c) => c.status === "pending").length || 0,
             inProgressComplaints: data?.filter((c) => c.status === "in-progress").length || 0,
             resolvedComplaints: data?.filter((c) => c.status === "resolved").length || 0,
+            cancelledComplaints: data?.filter((c) => c.status === "cancelled").length || 0,
         }
 
         return stats
@@ -161,6 +162,8 @@ export async function updateMyComplaint(complaintId: string, formData: FormData)
             throw new Error("Cannot update complaint that is no longer pending")
         }
 
+        const complaintType = formData.get("complaintType") as string
+        const location = formData.get("location") as string
         const description = formData.get("description") as string
         const urgency = formData.get("urgency") as string
         const imageUrl = formData.get("imageUrl") as string
@@ -169,6 +172,8 @@ export async function updateMyComplaint(complaintId: string, formData: FormData)
             updated_at: new Date().toISOString(),
         }
 
+        if (complaintType) updateData.complaint_type = complaintType
+        if (location) updateData.location = location
         if (description) updateData.description = description
         if (urgency) updateData.urgency = urgency
         if (imageUrl) updateData.image_url = imageUrl
@@ -214,7 +219,10 @@ export async function cancelComplaint(complaintId: string) {
 
         const { error } = await supabase
             .from("complaints")
-            .delete()
+            .update({
+                status: "cancelled",
+                updated_at: new Date().toISOString(),
+            })
             .eq("id", complaintId)
             .eq("user_id", user.id)
 

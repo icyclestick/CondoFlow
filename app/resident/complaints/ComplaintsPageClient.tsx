@@ -16,8 +16,18 @@ import { useEffect, useState } from "react";
 import {
   getMyComplaints,
   createComplaint,
+  cancelComplaint,
+  updateMyComplaint,
 } from "@/lib/actions/resident/resident-complaints";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Complaint {
   id: string;
@@ -51,6 +61,12 @@ export default function ComplaintsPageClient({
     imageUrl: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [viewComplaint, setViewComplaint] = useState<Complaint | null>(null);
+  const [editingComplaint, setEditingComplaint] = useState<Complaint | null>(
+    null
+  );
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -110,6 +126,62 @@ export default function ComplaintsPageClient({
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    setCancelingId(id);
+    setError("");
+    try {
+      await cancelComplaint(id);
+      setComplaints(await getMyComplaints());
+      toast({
+        title: "Complaint Cancelled",
+        description: "Your complaint has been cancelled successfully.",
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to cancel complaint.");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to cancel complaint",
+        variant: "destructive",
+      });
+    } finally {
+      setCancelingId(null);
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingComplaint) return;
+
+    setIsEditing(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("complaintType", editingComplaint.complaint_type || "");
+      formData.append("location", editingComplaint.location || "");
+      formData.append("description", editingComplaint.description || "");
+      formData.append("urgency", editingComplaint.urgency || "medium");
+      formData.append("imageUrl", editingComplaint.image_url || "");
+
+      await updateMyComplaint(editingComplaint.id, formData);
+
+      setComplaints(await getMyComplaints());
+      setEditingComplaint(null);
+      toast({
+        title: "Complaint Updated",
+        description: "Your complaint has been updated successfully.",
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to update complaint.");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update complaint",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEditing(false);
     }
   };
 
@@ -253,18 +325,15 @@ export default function ComplaintsPageClient({
                           <th className="pb-2">Type</th>
                           <th className="pb-2">Date</th>
                           <th className="pb-2">Status</th>
-                          <th className="pb-2">Last Update</th>
                           <th className="pb-2">Urgency</th>
-                          <th className="pb-2">Location</th>
-                          <th className="pb-2">Description</th>
-                          <th className="pb-2">Admin Response</th>
+                          <th className="pb-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {complaints.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={9}
+                              colSpan={6}
                               className="py-3 text-center text-muted-foreground"
                             >
                               No complaints found.
@@ -273,7 +342,9 @@ export default function ComplaintsPageClient({
                         ) : (
                           complaints.map((complaint) => (
                             <tr key={complaint.id} className="border-b">
-                              <td className="py-2">{complaint.id}</td>
+                              <td className="py-2">
+                                {complaint.id.slice(0, 8)}
+                              </td>
                               <td className="py-2">
                                 {complaint.complaint_type}
                               </td>
@@ -289,43 +360,65 @@ export default function ComplaintsPageClient({
                                   variant={
                                     complaint.status === "resolved"
                                       ? "default"
-                                      : complaint.status === "pending"
-                                      ? "outline"
-                                      : complaint.status === "in_progress"
+                                      : complaint.status === "in-progress"
                                       ? "secondary"
-                                      : "destructive"
+                                      : complaint.status === "cancelled"
+                                      ? "destructive"
+                                      : "outline"
                                   }
                                 >
                                   {complaint.status}
                                 </Badge>
                               </td>
                               <td className="py-2">
-                                {complaint.updated_at
-                                  ? new Date(
-                                      complaint.updated_at
-                                    ).toLocaleDateString()
-                                  : "-"}
+                                <Badge
+                                  variant={
+                                    complaint.urgency === "emergency" ||
+                                    complaint.urgency === "high"
+                                      ? "destructive"
+                                      : complaint.urgency === "medium"
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                >
+                                  {complaint.urgency}
+                                </Badge>
                               </td>
-                              <td className="py-2">{complaint.urgency}</td>
-                              <td className="py-2">{complaint.location}</td>
-                              <td className="py-2 max-w-xs truncate">
-                                {complaint.description}
-                              </td>
-                              <td className="py-2 max-w-xs">
-                                {complaint.admin_response ? (
-                                  <div className="text-sm">
-                                    <div className="font-medium text-green-600">
-                                      ✓ Admin Responded
-                                    </div>
-                                    <div className="text-muted-foreground truncate">
-                                      {complaint.admin_response}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground text-sm">
-                                    No response yet
-                                  </span>
-                                )}
+                              <td className="py-2">
+                                <div className="flex space-x-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setViewComplaint(complaint)}
+                                  >
+                                    View
+                                  </Button>
+                                  {complaint.status === "pending" && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() =>
+                                          setEditingComplaint(complaint)
+                                        }
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() =>
+                                          handleCancel(complaint.id)
+                                        }
+                                        disabled={cancelingId === complaint.id}
+                                      >
+                                        {cancelingId === complaint.id
+                                          ? "Cancelling..."
+                                          : "Cancel"}
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -339,6 +432,238 @@ export default function ComplaintsPageClient({
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* View Complaint Modal */}
+      <Dialog
+        open={!!viewComplaint}
+        onOpenChange={() => setViewComplaint(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complaint Details</DialogTitle>
+          </DialogHeader>
+          {viewComplaint && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Complaint ID</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewComplaint.id.slice(0, 8)}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Type</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewComplaint.complaint_type}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Location</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewComplaint.location}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        viewComplaint.status === "resolved"
+                          ? "default"
+                          : viewComplaint.status === "in-progress"
+                          ? "secondary"
+                          : viewComplaint.status === "cancelled"
+                          ? "destructive"
+                          : "outline"
+                      }
+                    >
+                      {viewComplaint.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Urgency</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        viewComplaint.urgency === "emergency" ||
+                        viewComplaint.urgency === "high"
+                          ? "destructive"
+                          : viewComplaint.urgency === "medium"
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
+                      {viewComplaint.urgency}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Created Date</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewComplaint.created_at
+                      ? new Date(viewComplaint.created_at).toLocaleString()
+                      : "-"}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Description</Label>
+                <p className="text-sm text-muted-foreground">
+                  {viewComplaint.description}
+                </p>
+              </div>
+              {viewComplaint.admin_response && (
+                <div>
+                  <Label className="text-sm font-medium">Admin Response</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewComplaint.admin_response}
+                  </p>
+                </div>
+              )}
+              {viewComplaint.image_url && (
+                <div>
+                  <Label className="text-sm font-medium">Attached Image</Label>
+                  <div className="mt-2">
+                    <img
+                      src={viewComplaint.image_url}
+                      alt="Complaint evidence"
+                      className="max-w-xs rounded border"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewComplaint(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Complaint Modal */}
+      <Dialog
+        open={!!editingComplaint}
+        onOpenChange={() => setEditingComplaint(null)}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Complaint</DialogTitle>
+          </DialogHeader>
+          {editingComplaint && (
+            <form onSubmit={handleEdit} className="space-y-6">
+              {error && <div className="text-red-600">{error}</div>}
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="edit-complaint-type">Complaint Type</Label>
+                  <select
+                    id="edit-complaint-type"
+                    name="complaintType"
+                    required
+                    value={editingComplaint.complaint_type || ""}
+                    onChange={(e) =>
+                      setEditingComplaint({
+                        ...editingComplaint,
+                        complaint_type: e.target.value,
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="noise">Noise Complaint</option>
+                    <option value="maintenance">Maintenance Issue</option>
+                    <option value="security">Security Concern</option>
+                    <option value="neighbor">Neighbor Dispute</option>
+                    <option value="common-area">Common Area Issue</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-location">Location</Label>
+                  <input
+                    id="edit-location"
+                    name="location"
+                    type="text"
+                    required
+                    value={editingComplaint.location || ""}
+                    onChange={(e) =>
+                      setEditingComplaint({
+                        ...editingComplaint,
+                        location: e.target.value,
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder="Where is the issue occurring?"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  name="description"
+                  required
+                  value={editingComplaint.description || ""}
+                  onChange={(e) =>
+                    setEditingComplaint({
+                      ...editingComplaint,
+                      description: e.target.value,
+                    })
+                  }
+                  className="min-h-[120px]"
+                  placeholder="Please provide a detailed description of the issue"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-urgency">Urgency Level</Label>
+                <select
+                  id="edit-urgency"
+                  name="urgency"
+                  required
+                  value={editingComplaint.urgency || "medium"}
+                  onChange={(e) =>
+                    setEditingComplaint({
+                      ...editingComplaint,
+                      urgency: e.target.value,
+                    })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="low">
+                    Low - Can be addressed within a week
+                  </option>
+                  <option value="medium">
+                    Medium - Should be addressed within 2-3 days
+                  </option>
+                  <option value="high">
+                    High - Requires attention within 24 hours
+                  </option>
+                  <option value="emergency">
+                    Emergency - Requires immediate attention
+                  </option>
+                </select>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingComplaint(null)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isEditing}>
+                  {isEditing ? "Updating..." : "Update Complaint"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

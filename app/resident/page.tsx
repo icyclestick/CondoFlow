@@ -11,6 +11,7 @@ import {
   Truck,
   UserPlus,
   Wrench,
+  AlertCircle,
 } from "lucide-react";
 
 import { MainLayout } from "@/components/main-layout";
@@ -37,10 +38,25 @@ import { getMyComplaints } from "@/lib/actions/resident/resident-complaints";
 import { getMyMoveRequests } from "@/lib/actions/resident/resident-move-requests";
 import { getMyAmenityStats } from "@/lib/actions/resident/resident-amenities";
 import { getMyAmenityBookings } from "@/lib/actions/resident/resident-amenities";
+import {
+  getRecentActivity,
+  ActivityItem,
+} from "@/lib/actions/resident/resident-activity";
 
 export default function ResidentDashboard() {
   const [isLoading, setIsLoading] = useState(true);
-  const [data, setData] = useState<any>({});
+  const [data, setData] = useState<{
+    profile?: any;
+    unitInfo?: any;
+    payments?: any[];
+    serviceRequests?: any[];
+    visitorRequests?: any[];
+    complaints?: any[];
+    moveRequests?: any[];
+    amenityStats?: any;
+    amenityBookings?: any[];
+    recentActivity?: ActivityItem[];
+  }>({});
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -57,6 +73,7 @@ export default function ResidentDashboard() {
           moveRequests,
           amenityStats,
           amenityBookings,
+          recentActivity,
         ] = await Promise.all([
           getMyProfile(),
           getMyUnitInfo(),
@@ -67,6 +84,7 @@ export default function ResidentDashboard() {
           getMyMoveRequests(),
           getMyAmenityStats(),
           getMyAmenityBookings(),
+          getRecentActivity(5), // Get last 5 activities
         ]);
 
         setData({
@@ -79,6 +97,7 @@ export default function ResidentDashboard() {
           moveRequests,
           amenityStats,
           amenityBookings,
+          recentActivity,
         });
       } catch (err) {
         setError("Failed to load dashboard data");
@@ -183,6 +202,7 @@ export default function ResidentDashboard() {
     moveRequests,
     amenityStats,
     amenityBookings,
+    recentActivity,
   } = data;
 
   // Get next upcoming amenity booking
@@ -237,6 +257,54 @@ export default function ResidentDashboard() {
       status: r.status,
     })) || []),
   ];
+
+  // Format currency in Philippine Peso
+  const formatCurrency = (amount: number) => {
+    return `₱${amount.toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  // Helper function to get icon for activity type
+  const getActivityIcon = (icon: string) => {
+    switch (icon) {
+      case "calendar":
+        return <Calendar className="h-4 w-4" />;
+      case "credit-card":
+        return <CreditCard className="h-4 w-4" />;
+      case "alert-circle":
+        return <AlertCircle className="h-4 w-4" />;
+      case "wrench":
+        return <Wrench className="h-4 w-4" />;
+      case "user-plus":
+        return <UserPlus className="h-4 w-4" />;
+      case "message-square":
+        return <MessageSquare className="h-4 w-4" />;
+      case "truck":
+        return <Truck className="h-4 w-4" />;
+      default:
+        return <FileText className="h-4 w-4" />;
+    }
+  };
+
+  // Helper function to format date
+  const formatActivityDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return "Today";
+    } else if (diffDays === 1) {
+      return "Yesterday";
+    } else if (diffDays < 7) {
+      return `${diffDays} days ago`;
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
 
   return (
     <MainLayout
@@ -312,7 +380,9 @@ export default function ResidentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {nextPayment ? `$${nextPayment.amount}` : "$0.00"}
+                {nextPayment
+                  ? formatCurrency(nextPayment.amount)
+                  : formatCurrency(0)}
               </div>
               <p className="text-xs text-muted-foreground">
                 {nextPayment
@@ -407,11 +477,67 @@ export default function ResidentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  No recent activity
-                </p>
+                {recentActivity && recentActivity.length > 0 ? (
+                  recentActivity.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="flex items-start space-x-3"
+                    >
+                      <div className="flex-shrink-0 mt-0.5">
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                          {getActivityIcon(activity.icon)}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-foreground">
+                            {activity.title}
+                          </p>
+                          <span className="text-xs text-muted-foreground">
+                            {formatActivityDate(activity.date)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {activity.description}
+                        </p>
+                        {activity.status && (
+                          <div className="mt-1">
+                            <Badge
+                              variant={
+                                activity.status === "approved" ||
+                                activity.status === "paid"
+                                  ? "default"
+                                  : activity.status === "in-progress" ||
+                                    activity.status === "pending"
+                                  ? "secondary"
+                                  : "outline"
+                              }
+                              className="text-xs"
+                            >
+                              {activity.status}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No recent activity
+                  </p>
+                )}
               </div>
             </CardContent>
+            {recentActivity && recentActivity.length > 0 && (
+              <CardFooter>
+                <Button variant="outline" size="sm" asChild className="ml-auto">
+                  <Link href="/resident/requests">
+                    View All Activity
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardFooter>
+            )}
           </Card>
         </div>
 

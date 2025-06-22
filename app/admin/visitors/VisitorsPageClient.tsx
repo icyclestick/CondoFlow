@@ -29,6 +29,32 @@ import {
   deleteVisitorRequest,
 } from "@/lib/actions/admin/visitors";
 
+// Type definitions
+interface VisitorRequest {
+  id: string;
+  visitor_name: string;
+  visit_date: string;
+  time_in: string;
+  time_out?: string;
+  reason: string;
+  vehicle_info?: string;
+  status:
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "checked-in"
+    | "checked-out"
+    | "cancelled";
+  created_at: string;
+  updated_at?: string;
+  user_id: string;
+  profiles?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+}
+
 export default function VisitorsPageClient({
   userName,
   userRole,
@@ -37,11 +63,13 @@ export default function VisitorsPageClient({
   userRole: "admin" | "resident";
 }) {
   const { toast } = useToast();
-  const [visitorRequests, setVisitorRequests] = useState([]);
+  const [visitorRequests, setVisitorRequests] = useState<VisitorRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [viewVisitor, setViewVisitor] = useState<any | null>(null);
-  const [editingVisitor, setEditingVisitor] = useState<any | null>(null);
+  const [viewVisitor, setViewVisitor] = useState<VisitorRequest | null>(null);
+  const [editingVisitor, setEditingVisitor] = useState<VisitorRequest | null>(
+    null
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [isApproving, setIsApproving] = useState<string | null>(null);
   const [isRejecting, setIsRejecting] = useState<string | null>(null);
@@ -50,7 +78,7 @@ export default function VisitorsPageClient({
     setLoading(true);
     getAllVisitorRequests()
       .then(setVisitorRequests)
-      .catch((err) =>
+      .catch((err: Error) =>
         setError(err.message || "Failed to load visitor requests")
       )
       .finally(() => setLoading(false));
@@ -157,23 +185,24 @@ export default function VisitorsPageClient({
   };
 
   // Filter requests by status
-  const pendingRequests = visitorRequests.filter(
-    (v: any) => v.status === "pending"
-  );
+  const pendingRequests = visitorRequests.filter((v) => v.status === "pending");
   const approvedRequests = visitorRequests.filter(
-    (v: any) => v.status === "approved"
+    (v) => v.status === "approved"
+  );
+  const rejectedRequests = visitorRequests.filter(
+    (v) => v.status === "rejected"
   );
   const checkedInRequests = visitorRequests.filter(
-    (v: any) => v.status === "checked-in"
+    (v) => v.status === "checked-in"
   );
   const checkedOutRequests = visitorRequests.filter(
-    (v: any) => v.status === "checked-out"
+    (v) => v.status === "checked-out"
   );
   const cancelledRequests = visitorRequests.filter(
-    (v: any) => v.status === "cancelled"
+    (v) => v.status === "cancelled"
   );
 
-  const renderVisitorTable = (requests: any[], title: string) => (
+  const renderVisitorTable = (requests: VisitorRequest[], title: string) => (
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
@@ -219,6 +248,8 @@ export default function VisitorsPageClient({
                             ? "default"
                             : visitor.status === "approved"
                             ? "outline"
+                            : visitor.status === "rejected"
+                            ? "destructive"
                             : visitor.status === "cancelled"
                             ? "destructive"
                             : "outline"
@@ -312,6 +343,9 @@ export default function VisitorsPageClient({
             <TabsTrigger value="approved">
               Approved ({approvedRequests.length})
             </TabsTrigger>
+            <TabsTrigger value="rejected">
+              Rejected ({rejectedRequests.length})
+            </TabsTrigger>
             <TabsTrigger value="checked-in">
               Checked In ({checkedInRequests.length})
             </TabsTrigger>
@@ -340,6 +374,16 @@ export default function VisitorsPageClient({
               </div>
             ) : (
               renderVisitorTable(approvedRequests, "Approved Requests")
+            )}
+          </TabsContent>
+
+          <TabsContent value="rejected" className="space-y-6">
+            {loading ? (
+              <div className="py-8 text-center text-muted-foreground">
+                Loading...
+              </div>
+            ) : (
+              renderVisitorTable(rejectedRequests, "Rejected Requests")
             )}
           </TabsContent>
 
@@ -430,6 +474,8 @@ export default function VisitorsPageClient({
                             ? "default"
                             : viewVisitor.status === "approved"
                             ? "outline"
+                            : viewVisitor.status === "rejected"
+                            ? "destructive"
                             : viewVisitor.status === "cancelled"
                             ? "destructive"
                             : "outline"

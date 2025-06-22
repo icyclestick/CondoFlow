@@ -402,6 +402,8 @@ export default function ComplaintsPageClient({
                                     ? "default"
                                     : complaint.status === "in-progress"
                                     ? "secondary"
+                                    : complaint.status === "cancelled"
+                                    ? "destructive"
                                     : "outline"
                                 }
                               >
@@ -560,7 +562,9 @@ export default function ComplaintsPageClient({
                                     ? "default"
                                     : complaint.status === "in-progress"
                                     ? "secondary"
-                                    : "destructive"
+                                    : complaint.status === "cancelled"
+                                    ? "destructive"
+                                    : "outline"
                                 }
                               >
                                 {complaint.status}
@@ -680,6 +684,8 @@ export default function ComplaintsPageClient({
                           ? "default"
                           : selectedComplaint.status === "in-progress"
                           ? "secondary"
+                          : selectedComplaint.status === "cancelled"
+                          ? "destructive"
                           : "outline"
                       }
                     >

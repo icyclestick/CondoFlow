@@ -53,6 +53,7 @@ export async function getComplaintStats() {
       openComplaints: data?.filter((c) => c.status === "pending").length || 0,
       inProgressComplaints: data?.filter((c) => c.status === "in-progress").length || 0,
       resolvedComplaints: data?.filter((c) => c.status === "resolved").length || 0,
+      cancelledComplaints: data?.filter((c) => c.status === "cancelled").length || 0,
     }
 
     return stats

@@ -115,8 +115,7 @@ export async function confirmPayment(paymentId: string, paymentMethod: string, p
             .update({
                 status: "paid",
                 payment_method: paymentMethod,
-                payment_date: paymentDate || new Date().toISOString(),
-                updated_at: new Date().toISOString(),
+                payment_date: paymentDate || new Date().toISOString().split('T')[0],
             })
             .eq("id", paymentId)
             .eq("user_id", user.id)
