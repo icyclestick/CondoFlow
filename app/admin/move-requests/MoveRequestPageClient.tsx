@@ -22,6 +22,14 @@ import {
   approveMoveRequest,
   rejectMoveRequest,
 } from "@/lib/actions";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface MoveRequest {
   id: string;
@@ -66,6 +74,10 @@ export default function AdminMoveRequestsPage({
   const [selectedStatus, setSelectedStatus] = useState("");
   const [selectedType, setSelectedType] = useState("");
   const { toast } = useToast();
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<MoveRequest | null>(
+    null
+  );
 
   useEffect(() => {
     fetchData();
@@ -147,6 +159,16 @@ export default function AdminMoveRequestsPage({
         variant: "destructive",
       });
     }
+  };
+
+  const handleViewRequest = (request: MoveRequest) => {
+    setSelectedRequest(request);
+    setShowViewModal(true);
+  };
+
+  const closeViewModal = () => {
+    setShowViewModal(false);
+    setSelectedRequest(null);
   };
 
   const filteredRequests = requests.filter((request) => {
@@ -283,6 +305,7 @@ export default function AdminMoveRequestsPage({
             <TabsTrigger value="all">All Requests</TabsTrigger>
             <TabsTrigger value="pending">Pending</TabsTrigger>
             <TabsTrigger value="approved">Approved</TabsTrigger>
+            <TabsTrigger value="completed">Completed</TabsTrigger>
           </TabsList>
           <TabsContent value="all" className="space-y-4">
             <Card>
@@ -361,7 +384,11 @@ export default function AdminMoveRequestsPage({
                             </td>
                             <td className="py-3">
                               <div className="flex space-x-2">
-                                <Button size="sm" variant="outline">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleViewRequest(request)}
+                                >
                                   View
                                 </Button>
                                 {request.status === "pending" && (
@@ -539,8 +566,191 @@ export default function AdminMoveRequestsPage({
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="completed" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Completed Requests</CardTitle>
+                <CardDescription>
+                  Requests that have been completed
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm font-medium text-muted-foreground">
+                        <th className="pb-2">Resident</th>
+                        <th className="pb-2">Type</th>
+                        <th className="pb-2">Unit</th>
+                        <th className="pb-2">Move Date</th>
+                        <th className="pb-2">Completed Date</th>
+                        <th className="pb-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRequests
+                        .filter((r) => r.status === "completed")
+                        .map((request) => (
+                          <tr key={request.id} className="border-b">
+                            <td className="py-3">
+                              {request.profiles?.full_name || "Unknown"}
+                            </td>
+                            <td className="py-3">
+                              <Badge
+                                variant={
+                                  request.type === "move-in"
+                                    ? "default"
+                                    : "secondary"
+                                }
+                              >
+                                {request.type === "move-in"
+                                  ? "Move-in"
+                                  : "Move-out"}
+                              </Badge>
+                            </td>
+                            <td className="py-3">
+                              {request.units
+                                ? `Block ${request.units.block}, #${request.units.unit_number}`
+                                : "No unit assigned"}
+                            </td>
+                            <td className="py-3">
+                              {formatDate(request.move_date)}
+                            </td>
+                            <td className="py-3">
+                              {formatDate(request.updated_at)}
+                            </td>
+                            <td className="py-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleViewRequest(request)}
+                              >
+                                View
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move Request Details</DialogTitle>
+          </DialogHeader>
+          {selectedRequest && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Resident</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.profiles?.full_name || "Unknown"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Email</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.profiles?.email || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Phone</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.profiles?.phone || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Unit</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.units
+                      ? `Block ${selectedRequest.units.block}, #${selectedRequest.units.unit_number}`
+                      : "No unit assigned"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Type</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        selectedRequest.type === "move-in"
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
+                      {selectedRequest.type === "move-in"
+                        ? "Move-in"
+                        : "Move-out"}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        selectedRequest.status === "approved"
+                          ? "default"
+                          : selectedRequest.status === "completed"
+                          ? "secondary"
+                          : selectedRequest.status === "pending"
+                          ? "outline"
+                          : "destructive"
+                      }
+                    >
+                      {selectedRequest.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Move Date</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDate(selectedRequest.move_date)}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Time Slot</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.time_slot}
+                  </p>
+                </div>
+              </div>
+              {selectedRequest.notes && (
+                <div>
+                  <Label className="text-sm font-medium">Notes</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.notes}
+                  </p>
+                </div>
+              )}
+              <div>
+                <Label className="text-sm font-medium">Created At</Label>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(selectedRequest.created_at).toLocaleString()}
+                </p>
+              </div>
+              {selectedRequest.updated_at !== selectedRequest.created_at && (
+                <div>
+                  <Label className="text-sm font-medium">Last Updated</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(selectedRequest.updated_at).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeViewModal}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

@@ -21,6 +21,14 @@ import {
   approveGatepassRequest,
   rejectGatepassRequest,
 } from "@/lib/actions";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface GatepassRequest {
   id: string;
@@ -58,6 +66,9 @@ export default function AdminGatepassPage({
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const { toast } = useToast();
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] =
+    useState<GatepassRequest | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -150,6 +161,16 @@ export default function AdminGatepassPage({
 
     return matchesSearch && matchesStatus;
   });
+
+  const handleViewRequest = (request: GatepassRequest) => {
+    setSelectedRequest(request);
+    setShowViewModal(true);
+  };
+
+  const closeViewModal = () => {
+    setShowViewModal(false);
+    setSelectedRequest(null);
+  };
 
   return (
     <MainLayout userRole={userRole as "admin" | "resident"} userName={userName}>
@@ -327,7 +348,11 @@ export default function AdminGatepassPage({
                         </td>
                         <td className="py-3">
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewRequest(request)}
+                            >
                               View
                             </Button>
                             {request.status === "pending" && (
@@ -367,6 +392,97 @@ export default function AdminGatepassPage({
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gatepass Request Details</DialogTitle>
+          </DialogHeader>
+          {selectedRequest && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Resident Name</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.profiles.full_name}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Resident Email</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.profiles.email}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Resident Phone</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.profiles.phone}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Visitor Name</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.visitor_name}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Visitor Phone</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.visitor_phone}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        selectedRequest.status === "approved"
+                          ? "default"
+                          : selectedRequest.status === "pending"
+                          ? "outline"
+                          : selectedRequest.status === "completed"
+                          ? "secondary"
+                          : "destructive"
+                      }
+                    >
+                      {selectedRequest.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Visit Date</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(selectedRequest.visit_date).toLocaleDateString()}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Time Slot</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.time_slot}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Purpose</Label>
+                <p className="text-sm text-muted-foreground">
+                  {selectedRequest.purpose}
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Created At</Label>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(selectedRequest.created_at).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeViewModal}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
