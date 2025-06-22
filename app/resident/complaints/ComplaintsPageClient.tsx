@@ -29,6 +29,7 @@ interface Complaint {
   status: string;
   created_at?: string;
   updated_at?: string;
+  admin_response?: string | null;
 }
 
 export default function ComplaintsPageClient({
@@ -256,13 +257,14 @@ export default function ComplaintsPageClient({
                           <th className="pb-2">Urgency</th>
                           <th className="pb-2">Location</th>
                           <th className="pb-2">Description</th>
+                          <th className="pb-2">Admin Response</th>
                         </tr>
                       </thead>
                       <tbody>
                         {complaints.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={8}
+                              colSpan={9}
                               className="py-3 text-center text-muted-foreground"
                             >
                               No complaints found.
@@ -306,7 +308,25 @@ export default function ComplaintsPageClient({
                               </td>
                               <td className="py-2">{complaint.urgency}</td>
                               <td className="py-2">{complaint.location}</td>
-                              <td className="py-2">{complaint.description}</td>
+                              <td className="py-2 max-w-xs truncate">
+                                {complaint.description}
+                              </td>
+                              <td className="py-2 max-w-xs">
+                                {complaint.admin_response ? (
+                                  <div className="text-sm">
+                                    <div className="font-medium text-green-600">
+                                      ✓ Admin Responded
+                                    </div>
+                                    <div className="text-muted-foreground truncate">
+                                      {complaint.admin_response}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">
+                                    No response yet
+                                  </span>
+                                )}
+                              </td>
                             </tr>
                           ))
                         )}

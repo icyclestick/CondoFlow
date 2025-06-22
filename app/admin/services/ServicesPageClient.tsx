@@ -21,6 +21,14 @@ import {
   updateServiceRequestStatus,
   assignServiceRequest,
 } from "@/lib/actions";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface ServiceRequest {
   id: string;
@@ -61,6 +69,27 @@ export default function AdminServicesPage({
   const [selectedStatus, setSelectedStatus] = useState("");
   const [selectedUrgency, setSelectedUrgency] = useState("");
   const { toast } = useToast();
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(
+    null
+  );
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [requestToAssign, setRequestToAssign] = useState<ServiceRequest | null>(
+    null
+  );
+  const [selectedTechnician, setSelectedTechnician] = useState("");
+
+  // Hardcoded technicians for demo
+  const technicians = [
+    { id: "tech1", name: "John Smith", specialty: "Plumbing & Electrical" },
+    {
+      id: "tech2",
+      name: "Maria Garcia",
+      specialty: "HVAC & General Maintenance",
+    },
+    { id: "tech3", name: "David Chen", specialty: "Carpentry & Repairs" },
+    { id: "tech4", name: "Sarah Johnson", specialty: "Emergency Services" },
+  ];
 
   useEffect(() => {
     fetchData();
@@ -134,6 +163,39 @@ export default function AdminServicesPage({
             : "Failed to mark request as resolved.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleViewRequest = (request: ServiceRequest) => {
+    setSelectedRequest(request);
+    setShowViewModal(true);
+  };
+
+  const closeViewModal = () => {
+    setShowViewModal(false);
+    setSelectedRequest(null);
+  };
+
+  const openAssignModal = (request: ServiceRequest) => {
+    setRequestToAssign(request);
+    setSelectedTechnician("");
+    setShowAssignModal(true);
+  };
+
+  const closeAssignModal = () => {
+    setShowAssignModal(false);
+    setRequestToAssign(null);
+    setSelectedTechnician("");
+  };
+
+  const confirmAssign = async () => {
+    if (!requestToAssign || !selectedTechnician) return;
+
+    try {
+      await handleAssign(requestToAssign.id, selectedTechnician);
+      closeAssignModal();
+    } catch (error) {
+      // Error handling is already done in handleAssign
     }
   };
 
@@ -362,18 +424,17 @@ export default function AdminServicesPage({
                             </td>
                             <td className="py-3">
                               <div className="flex space-x-2">
-                                <Button size="sm" variant="outline">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleViewRequest(request)}
+                                >
                                   View
                                 </Button>
                                 {request.status === "pending" && (
                                   <Button
                                     size="sm"
-                                    onClick={() =>
-                                      handleAssign(
-                                        request.id,
-                                        "Available Technician"
-                                      )
-                                    }
+                                    onClick={() => openAssignModal(request)}
                                   >
                                     Assign
                                   </Button>
@@ -448,12 +509,7 @@ export default function AdminServicesPage({
                             <td className="py-3">
                               <Button
                                 size="sm"
-                                onClick={() =>
-                                  handleAssign(
-                                    request.id,
-                                    "Available Technician"
-                                  )
-                                }
+                                onClick={() => openAssignModal(request)}
                               >
                                 Assign
                               </Button>
@@ -507,12 +563,7 @@ export default function AdminServicesPage({
                               {request.status === "pending" ? (
                                 <Button
                                   size="sm"
-                                  onClick={() =>
-                                    handleAssign(
-                                      request.id,
-                                      "Emergency Technician"
-                                    )
-                                  }
+                                  onClick={() => openAssignModal(request)}
                                 >
                                   Assign Now
                                 </Button>
@@ -535,6 +586,164 @@ export default function AdminServicesPage({
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Service Request Details</DialogTitle>
+          </DialogHeader>
+          {selectedRequest && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Request ID</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.id.slice(0, 8)}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Resident</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.profiles?.full_name || "Unknown"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Email</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.profiles?.email || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Phone</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.profiles?.phone || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Service Type</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.service_type}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Urgency</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        selectedRequest.urgency === "emergency"
+                          ? "destructive"
+                          : selectedRequest.urgency === "high"
+                          ? "destructive"
+                          : selectedRequest.urgency === "medium"
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
+                      {selectedRequest.urgency}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        selectedRequest.status === "completed"
+                          ? "default"
+                          : selectedRequest.status === "in-progress" ||
+                            selectedRequest.status === "assigned"
+                          ? "secondary"
+                          : "outline"
+                      }
+                    >
+                      {selectedRequest.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Assigned To</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.assigned_to || "Not assigned"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Created Date</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDate(selectedRequest.created_at)}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">
+                    Preferred Schedule
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRequest.preferred_schedule || "Not specified"}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Description</Label>
+                <p className="text-sm text-muted-foreground">
+                  {selectedRequest.description}
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Last Updated</Label>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(selectedRequest.updated_at).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeViewModal}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Technician</DialogTitle>
+          </DialogHeader>
+          {requestToAssign && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Service Request</Label>
+                <p className="text-sm text-muted-foreground">
+                  {requestToAssign.service_type} -{" "}
+                  {requestToAssign.description.substring(0, 50)}...
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Select Technician</Label>
+                <select
+                  value={selectedTechnician}
+                  onChange={(e) => setSelectedTechnician(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="">Choose a technician...</option>
+                  {technicians.map((tech) => (
+                    <option key={tech.id} value={tech.name}>
+                      {tech.name} - {tech.specialty}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeAssignModal}>
+              Cancel
+            </Button>
+            <Button onClick={confirmAssign} disabled={!selectedTechnician}>
+              Assign Technician
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
