@@ -47,7 +47,13 @@ interface ServiceStats {
   emergencyRequests: number;
 }
 
-export default function AdminServicesPage({userName, userRole}: {userName: string, userRole: "admin" | "resident"}) {
+export default function AdminServicesPage({
+  userName,
+  userRole,
+}: {
+  userName: string;
+  userRole: "admin" | "resident";
+}) {
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [stats, setStats] = useState<ServiceStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +77,11 @@ export default function AdminServicesPage({userName, userRole}: {userName: strin
       setRequests(
         requestsData.map((request: any) => ({
           ...request,
-          profiles: request.profiles[0], // Assuming the first profile is the relevant one
+          profiles: request.profiles || {
+            full_name: "Unknown",
+            email: "",
+            phone: null,
+          },
         }))
       );
       setStats(statsData);
@@ -130,7 +140,7 @@ export default function AdminServicesPage({userName, userRole}: {userName: strin
   const filteredRequests = requests.filter((request) => {
     const matchesSearch =
       !searchTerm ||
-      request.profiles.full_name
+      (request.profiles?.full_name || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
       request.service_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -149,7 +159,10 @@ export default function AdminServicesPage({userName, userRole}: {userName: strin
 
   if (isLoading) {
     return (
-      <MainLayout userRole={userRole as "admin" | "resident"} userName={userName}>
+      <MainLayout
+        userRole={userRole as "admin" | "resident"}
+        userName={userName}
+      >
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-muted-foreground">Loading services data...</div>
         </div>
@@ -309,7 +322,7 @@ export default function AdminServicesPage({userName, userRole}: {userName: strin
                               {request.id.slice(0, 8)}
                             </td>
                             <td className="py-3">
-                              {request.profiles.full_name}
+                              {request.profiles?.full_name || "Unknown"}
                             </td>
                             <td className="py-3">{request.service_type}</td>
                             <td className="py-3">
@@ -413,7 +426,7 @@ export default function AdminServicesPage({userName, userRole}: {userName: strin
                         .map((request) => (
                           <tr key={request.id} className="border-b">
                             <td className="py-3">
-                              {request.profiles.full_name}
+                              {request.profiles?.full_name || "Unknown"}
                             </td>
                             <td className="py-3">{request.service_type}</td>
                             <td className="py-3">
@@ -479,7 +492,7 @@ export default function AdminServicesPage({userName, userRole}: {userName: strin
                         .map((request) => (
                           <tr key={request.id} className="border-b">
                             <td className="py-3">
-                              {request.profiles.full_name}
+                              {request.profiles?.full_name || "Unknown"}
                             </td>
                             <td className="py-3">{request.service_type}</td>
                             <td className="py-3 max-w-xs truncate">

@@ -45,7 +45,13 @@ interface GatepassStats {
   completedRequests: number;
 }
 
-export default function AdminGatepassPage({userName, userRole}: {userName: string, userRole: "admin" | "resident"}) {
+export default function AdminGatepassPage({
+  userName,
+  userRole,
+}: {
+  userName: string;
+  userRole: "admin" | "resident";
+}) {
   const [requests, setRequests] = useState<GatepassRequest[]>([]);
   const [stats, setStats] = useState<GatepassStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -364,4 +370,3 @@ export default function AdminGatepassPage({userName, userRole}: {userName: strin
     </MainLayout>
   );
 }
-

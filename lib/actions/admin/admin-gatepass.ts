@@ -71,7 +71,6 @@ export async function approveGatepassRequest(requestId: string, adminNotes?: str
             .update({
                 status: "approved",
                 admin_notes: adminNotes,
-                updated_at: new Date().toISOString(),
             })
             .eq("id", requestId)
 
@@ -95,7 +94,6 @@ export async function rejectGatepassRequest(requestId: string, adminNotes?: stri
             .update({
                 status: "rejected",
                 admin_notes: adminNotes,
-                updated_at: new Date().toISOString(),
             })
             .eq("id", requestId)
 
@@ -118,7 +116,6 @@ export async function completeGatepassRequest(requestId: string) {
             .from("gatepass_requests")
             .update({
                 status: "completed",
-                updated_at: new Date().toISOString(),
             })
             .eq("id", requestId)
 

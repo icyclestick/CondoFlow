@@ -984,3 +984,116 @@ export async function updateUnit(unitId: string, formData: FormData) {
     throw new Error(error instanceof Error ? error.message : "Failed to update unit");
   }
 }
+
+// ✅ NEW: Get ownership details by ID (Admin only)
+export async function getOwnershipDetails(ownershipId: string) {
+  const { supabase } = await getAuthenticatedUser("admin")
+
+  try {
+    const { data: ownership, error } = await supabase
+      .from("unit_ownership")
+      .select(`
+        id,
+        ownership_percentage,
+        ownership_type,
+        start_date,
+        end_date,
+        is_active,
+        owner_id,
+        unit_id,
+        profiles!unit_ownership_owner_id_fkey (
+          id,
+          full_name,
+          email,
+          phone,
+          profile_type,
+          avatar_url,
+          is_verified
+        ),
+        units!unit_ownership_unit_id_fkey (
+          id,
+          block,
+          unit_number,
+          status,
+          monthly_fee
+        )
+      `)
+      .eq("id", ownershipId)
+      .single()
+
+    if (error) {
+      throw new Error(`Failed to fetch ownership details: ${error.message}`)
+    }
+
+    if (!ownership) {
+      throw new Error("Ownership record not found")
+    }
+
+    // Check if owner is also a resident (owner-occupied)
+    const { data: residency } = await supabase
+      .from("unit_residency")
+      .select("id")
+      .eq("unit_id", ownership.unit_id)
+      .eq("resident_id", ownership.owner_id)
+      .eq("is_active", true)
+      .single()
+
+    return {
+      ...ownership,
+      is_owner_occupied: !!residency,
+    }
+  } catch (error) {
+    console.error("Error fetching ownership details:", error)
+    throw new Error(error instanceof Error ? error.message : "Failed to fetch ownership details")
+  }
+}
+
+// ✅ NEW: Get residents for assignment (Admin only) - Optimized version
+export async function getResidentsForAssignment(page = 1, limit = 50, search = "") {
+  const { supabase } = await getAuthenticatedUser("admin")
+
+  try {
+    let query = supabase
+      .from("profiles")
+      .select(`
+        id,
+        full_name,
+        email,
+        phone,
+        role,
+        profile_type,
+        created_at,
+        avatar_url,
+        is_verified
+      `, { count: "exact" })
+      .eq("role", "resident")
+      .order("full_name")
+
+    // Add search filter if provided
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`)
+    }
+
+    // Add pagination
+    const from = (page - 1) * limit
+    const to = from + limit - 1
+    query = query.range(from, to)
+
+    const { data: residents, error, count } = await query
+
+    if (error) {
+      throw new Error(`Failed to fetch residents: ${error.message}`)
+    }
+
+    return {
+      residents: residents || [],
+      total: count || 0,
+      page,
+      limit,
+      totalPages: Math.ceil((count || 0) / limit)
+    }
+  } catch (error) {
+    console.error("Error fetching residents for assignment:", error)
+    throw new Error(error instanceof Error ? error.message : "Failed to fetch residents")
+  }
+}

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { addUnit } from "@/lib/actions";
 
-export default function AddUnitPage({
+export default function UnitsCreatePageClient({
   userName,
   userRole,
 }: {

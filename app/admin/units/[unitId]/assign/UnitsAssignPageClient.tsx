@@ -6,11 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getAllResidentsWithUnits, addUnitResidency } from "@/lib/actions";
-import { Input } from "@/components/ui/input";
+import { getResidentsForAssignment, addUnitResidency } from "@/lib/actions";
 import { Combobox } from "@/components/ui/combobox";
 
-export default function AssignUnitPage({userName, userRole}: {userName: string, userRole: "admin" | "resident"}) {
+export default function AssignUnitPage({
+  userName,
+  userRole,
+}: {
+  userName: string;
+  userRole: "admin" | "resident";
+}) {
   const router = useRouter();
   const { unitId } = useParams();
   const { toast } = useToast();
@@ -20,17 +25,22 @@ export default function AssignUnitPage({userName, userRole}: {userName: string, 
   const [loadingResidents, setLoadingResidents] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filteredResidents, setFilteredResidents] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalResidents, setTotalResidents] = useState(0);
 
   useEffect(() => {
     async function fetchResidents() {
       setLoadingResidents(true);
       setError(null);
       try {
-        const data = await getAllResidentsWithUnits();
-        setResidents(data);
-        setFilteredResidents(data);
-        if (data.length > 0) setSelectedResident(data[0].id);
+        const data = await getResidentsForAssignment(currentPage, 50, search);
+        setResidents(data.residents);
+        setTotalPages(data.totalPages);
+        setTotalResidents(data.total);
+        if (data.residents.length > 0 && !selectedResident) {
+          setSelectedResident(data.residents[0].id);
+        }
       } catch (err: any) {
         setError(err.message || "Failed to fetch residents");
       } finally {
@@ -38,19 +48,7 @@ export default function AssignUnitPage({userName, userRole}: {userName: string, 
       }
     }
     fetchResidents();
-  }, []);
-
-  useEffect(() => {
-    if (!search) {
-      setFilteredResidents(residents);
-    } else {
-      setFilteredResidents(
-        residents.filter((r) =>
-          r.full_name.toLowerCase().includes(search.toLowerCase())
-        )
-      );
-    }
-  }, [search, residents]);
+  }, [currentPage, search]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -93,19 +91,64 @@ export default function AssignUnitPage({userName, userRole}: {userName: string, 
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
+                  <Label htmlFor="search">Search Residents</Label>
+                  <input
+                    id="search"
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full border rounded px-2 py-1 mb-2"
+                  />
+                </div>
+                <div>
                   <Label htmlFor="resident">Select Resident</Label>
                   <Combobox
                     value={selectedResident}
                     onValueChange={setSelectedResident}
                     inputValue={search}
-                    onInputValueChange={setSearch}
-                    options={filteredResidents.map((r) => ({
+                    onInputValueChange={(val) => {
+                      setSearch(val);
+                      setCurrentPage(1);
+                    }}
+                    options={residents.map((r) => ({
                       value: r.id,
-                      label: r.full_name,
+                      label: `${r.full_name} (${r.email})`,
                     }))}
                     placeholder="Search residents..."
                     className="w-full"
                   />
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Showing {residents.length} of {totalResidents} residents
+                  {totalPages > 1 && (
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                      >
+                        Previous
+                      </Button>
+                      <span className="flex items-center px-2">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button

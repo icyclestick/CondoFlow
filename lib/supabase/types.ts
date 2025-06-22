@@ -62,6 +62,26 @@ export interface Database {
           capacity: number
           hourly_rate: number | null
           image_url: string | null
+          is_active: boolean
+          requires_approval: boolean
+        }
+        Insert: {
+          name: string
+          description?: string | null
+          capacity: number
+          hourly_rate?: number | null
+          image_url?: string | null
+          is_active?: boolean
+          requires_approval?: boolean
+        }
+        Update: {
+          name?: string
+          description?: string | null
+          capacity?: number
+          hourly_rate?: number | null
+          image_url?: string | null
+          is_active?: boolean
+          requires_approval?: boolean
         }
       }
       amenity_bookings: {

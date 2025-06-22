@@ -56,7 +56,13 @@ interface PaymentStats {
   overdueCount: number;
 }
 
-export default function AdminPaymentsPage({userName, userRole}: {userName: string, userRole: "admin" | "resident"}) {
+export default function AdminPaymentsPage({
+  userName,
+  userRole,
+}: {
+  userName: string;
+  userRole: "admin" | "resident";
+}) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [stats, setStats] = useState<PaymentStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);

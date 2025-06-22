@@ -76,7 +76,6 @@ export async function approveMoveRequest(requestId: string, adminNotes?: string)
       .update({
         status: "approved",
         admin_notes: adminNotes,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", requestId)
 
@@ -100,7 +99,6 @@ export async function rejectMoveRequest(requestId: string, adminNotes?: string) 
       .update({
         status: "rejected",
         admin_notes: adminNotes,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", requestId)
 
@@ -123,7 +121,6 @@ export async function completeMoveRequest(requestId: string) {
       .from("move_requests")
       .update({
         status: "completed",
-        updated_at: new Date().toISOString(),
       })
       .eq("id", requestId)
 

@@ -16,10 +16,30 @@ import {
   DollarSign,
   MessageSquare,
   Users,
+  Check,
+  X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  approveBooking,
+  rejectBooking,
+  approveMoveRequest,
+  rejectMoveRequest,
+  approveGatepassRequest,
+  rejectGatepassRequest,
+} from "@/lib/actions";
 
 interface AmenityBooking {
   id: string;
@@ -58,7 +78,86 @@ export default function AdminDashboardClient({
   gatepassRequests,
 }: AdminDashboardClientProps) {
   const { toast } = useToast();
-  // You can add client-side logic here if needed
+  const [isLoading, setIsLoading] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    type: "approve" | "reject";
+    requestType: "amenity" | "move" | "gatepass";
+    requestId: string;
+    requestName: string;
+  }>({
+    isOpen: false,
+    type: "approve",
+    requestType: "amenity",
+    requestId: "",
+    requestName: "",
+  });
+
+  const handleAction = async () => {
+    setIsLoading(true);
+    try {
+      const { type, requestType, requestId } = confirmDialog;
+
+      switch (requestType) {
+        case "amenity":
+          if (type === "approve") {
+            await approveBooking(requestId);
+          } else {
+            await rejectBooking(requestId);
+          }
+          break;
+        case "move":
+          if (type === "approve") {
+            await approveMoveRequest(requestId);
+          } else {
+            await rejectMoveRequest(requestId);
+          }
+          break;
+        case "gatepass":
+          if (type === "approve") {
+            await approveGatepassRequest(requestId);
+          } else {
+            await rejectGatepassRequest(requestId);
+          }
+          break;
+      }
+
+      toast({
+        title: `Request ${type === "approve" ? "Approved" : "Rejected"}`,
+        description: `The ${requestType} request has been ${
+          type === "approve" ? "approved" : "rejected"
+        } successfully.`,
+      });
+
+      // Refresh the page to update the data
+      window.location.reload();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to process request",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+      setConfirmDialog({ ...confirmDialog, isOpen: false });
+    }
+  };
+
+  const openConfirmDialog = (
+    type: "approve" | "reject",
+    requestType: "amenity" | "move" | "gatepass",
+    requestId: string,
+    requestName: string
+  ) => {
+    setConfirmDialog({
+      isOpen: true,
+      type,
+      requestType,
+      requestId,
+      requestName,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -186,7 +285,11 @@ export default function AdminDashboardClient({
                               variant={
                                 booking.status === "Pending"
                                   ? "outline"
-                                  : "default"
+                                  : booking.status === "Approved"
+                                  ? "default"
+                                  : booking.status === "Rejected"
+                                  ? "destructive"
+                                  : "secondary"
                               }
                             >
                               {booking.status}
@@ -194,11 +297,43 @@ export default function AdminDashboardClient({
                           </td>
                           <td className="py-3">
                             <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                View
+                              <Button size="sm" variant="outline" asChild>
+                                <Link href="/admin/amenities">View</Link>
                               </Button>
                               {booking.status === "Pending" && (
-                                <Button size="sm">Approve</Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={() =>
+                                      openConfirmDialog(
+                                        "approve",
+                                        "amenity",
+                                        booking.id,
+                                        `${booking.resident} - ${booking.amenity}`
+                                      )
+                                    }
+                                    disabled={isLoading}
+                                  >
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() =>
+                                      openConfirmDialog(
+                                        "reject",
+                                        "amenity",
+                                        booking.id,
+                                        `${booking.resident} - ${booking.amenity}`
+                                      )
+                                    }
+                                    disabled={isLoading}
+                                  >
+                                    <X className="h-3 w-3 mr-1" />
+                                    Reject
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </td>
@@ -266,7 +401,11 @@ export default function AdminDashboardClient({
                               variant={
                                 request.status === "Pending"
                                   ? "outline"
-                                  : "default"
+                                  : request.status === "Approved"
+                                  ? "default"
+                                  : request.status === "Rejected"
+                                  ? "destructive"
+                                  : "secondary"
                               }
                             >
                               {request.status}
@@ -274,11 +413,43 @@ export default function AdminDashboardClient({
                           </td>
                           <td className="py-3">
                             <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                View
+                              <Button size="sm" variant="outline" asChild>
+                                <Link href="/admin/move-requests">View</Link>
                               </Button>
                               {request.status === "Pending" && (
-                                <Button size="sm">Approve</Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={() =>
+                                      openConfirmDialog(
+                                        "approve",
+                                        "move",
+                                        request.id,
+                                        `${request.resident} - ${request.type}`
+                                      )
+                                    }
+                                    disabled={isLoading}
+                                  >
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() =>
+                                      openConfirmDialog(
+                                        "reject",
+                                        "move",
+                                        request.id,
+                                        `${request.resident} - ${request.type}`
+                                      )
+                                    }
+                                    disabled={isLoading}
+                                  >
+                                    <X className="h-3 w-3 mr-1" />
+                                    Reject
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </td>
@@ -345,7 +516,11 @@ export default function AdminDashboardClient({
                               variant={
                                 request.status === "Pending"
                                   ? "outline"
-                                  : "default"
+                                  : request.status === "Approved"
+                                  ? "default"
+                                  : request.status === "Rejected"
+                                  ? "destructive"
+                                  : "secondary"
                               }
                             >
                               {request.status}
@@ -353,11 +528,43 @@ export default function AdminDashboardClient({
                           </td>
                           <td className="py-3">
                             <div className="flex space-x-2">
-                              <Button size="sm" variant="outline">
-                                View
+                              <Button size="sm" variant="outline" asChild>
+                                <Link href="/admin/gatepass">View</Link>
                               </Button>
                               {request.status === "Pending" && (
-                                <Button size="sm">Approve</Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={() =>
+                                      openConfirmDialog(
+                                        "approve",
+                                        "gatepass",
+                                        request.id,
+                                        `${request.resident} - ${request.items}`
+                                      )
+                                    }
+                                    disabled={isLoading}
+                                  >
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() =>
+                                      openConfirmDialog(
+                                        "reject",
+                                        "gatepass",
+                                        request.id,
+                                        `${request.resident} - ${request.items}`
+                                      )
+                                    }
+                                    disabled={isLoading}
+                                  >
+                                    <X className="h-3 w-3 mr-1" />
+                                    Reject
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </td>
@@ -380,170 +587,44 @@ export default function AdminDashboardClient({
         </TabsContent>
       </Tabs>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Units Overview</CardTitle>
-            <CardDescription>Current occupancy and unit status</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Total Units</p>
-                  <p className="text-2xl font-bold">
-                    {stats.ownership.totalOwnedUnits}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Owner Occupied</p>
-                  <p className="text-2xl font-bold">
-                    {stats.ownership.ownerOccupied}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Investment</p>
-                  <p className="text-2xl font-bold">
-                    {stats.ownership.investmentProperties}
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <p className="font-medium">Block A</p>
-                  <p>48/50 units occupied</p>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-primary"
-                    style={{ width: "96%" }}
-                  ></div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <p className="font-medium">Block B</p>
-                  <p>45/50 units occupied</p>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-primary"
-                    style={{ width: "90%" }}
-                  ></div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <p className="font-medium">Block C</p>
-                  <p>42/50 units occupied</p>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-primary"
-                    style={{ width: "84%" }}
-                  ></div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <p className="font-medium">Block D</p>
-                  <p>43/50 units occupied</p>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-primary"
-                    style={{ width: "86%" }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" size="sm" className="ml-auto" asChild>
-              <Link href="/admin/units">
-                View All Units
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </CardFooter>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment Overview</CardTitle>
-            <CardDescription>Monthly dues and payment status</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Total Due</p>
-                  <p className="text-2xl font-bold">
-                    $
-                    {stats.payments.totalRevenue +
-                      stats.payments.outstandingAmount}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Collected</p>
-                  <p className="text-2xl font-bold">
-                    ${stats.payments.totalRevenue}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Outstanding</p>
-                  <p className="text-2xl font-bold">
-                    ${stats.payments.outstandingAmount}
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <p className="font-medium">Association Dues</p>
-                  <p>$18,200 / $20,000</p>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-primary"
-                    style={{ width: "91%" }}
-                  ></div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <p className="font-medium">Utility Fees</p>
-                  <p>$6,250 / $8,200</p>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-primary"
-                    style={{ width: "76%" }}
-                  ></div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <p className="font-medium">Parking Fees</p>
-                  <p>$4,000 / $7,000</p>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-primary"
-                    style={{ width: "57%" }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" size="sm" className="ml-auto" asChild>
-              <Link href="/admin/payments">
-                View All Payments
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
+      <AlertDialog
+        open={confirmDialog.isOpen}
+        onOpenChange={(open) =>
+          setConfirmDialog({ ...confirmDialog, isOpen: open })
+        }
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDialog.type === "approve" ? "Approve" : "Reject"} Request
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to {confirmDialog.type} the request for{" "}
+              <strong>{confirmDialog.requestName}</strong>?
+              {confirmDialog.type === "reject" &&
+                " This action cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleAction}
+              disabled={isLoading}
+              className={
+                confirmDialog.type === "reject"
+                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  : ""
+              }
+            >
+              {isLoading
+                ? "Processing..."
+                : confirmDialog.type === "approve"
+                ? "Approve"
+                : "Reject"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

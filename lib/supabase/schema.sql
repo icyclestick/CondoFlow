@@ -32,7 +32,9 @@ CREATE TABLE amenities (
   description TEXT,
   capacity INTEGER NOT NULL,
   hourly_rate DECIMAL(10,2),
-  image_url TEXT
+  image_url TEXT,
+  is_active BOOLEAN DEFAULT true,
+  requires_approval BOOLEAN DEFAULT true
 );
 
 -- Create amenity_bookings table

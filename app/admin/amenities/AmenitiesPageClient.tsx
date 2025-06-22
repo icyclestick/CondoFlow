@@ -23,6 +23,7 @@ import {
   getAllAmenities,
   createAmenity,
   updateAmenity,
+  deleteAmenity,
 } from "@/lib/actions";
 import {
   Dialog,
@@ -66,7 +67,13 @@ interface AmenityStats {
   totalRevenue: number;
 }
 
-export default function AmenitiesPageClient({userName, userRole}: {userName: string, userRole: "admin" | "resident"}) {
+export default function AmenitiesPageClient({
+  userName,
+  userRole,
+}: {
+  userName: string;
+  userRole: string;
+}) {
   const [bookings, setBookings] = useState<AmenityBooking[]>([]);
   const [amenities, setAmenities] = useState<Amenity[]>([]);
   const [stats, setStats] = useState<AmenityStats | null>(null);
@@ -86,6 +93,17 @@ export default function AmenitiesPageClient({userName, userRole}: {userName: str
   });
   const [formLoading, setFormLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [showViewBookingModal, setShowViewBookingModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<AmenityBooking | null>(
+    null
+  );
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedAmenityForSchedule, setSelectedAmenityForSchedule] =
+    useState<Amenity | null>(null);
+  const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [amenityToDelete, setAmenityToDelete] = useState<Amenity | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -278,9 +296,86 @@ export default function AmenitiesPageClient({userName, userRole}: {userName: str
       )
     : [];
 
+  // Get bookings for the selected amenity and date
+  const bookingsForAmenityAndDate =
+    scheduleDate && selectedAmenityForSchedule
+      ? bookings.filter(
+          (b) =>
+            new Date(b.booking_date).toDateString() ===
+              scheduleDate.toDateString() &&
+            b.amenities.name === selectedAmenityForSchedule.name
+        )
+      : [];
+
+  // Get all booking dates for the selected amenity
+  const amenityBookingDates = selectedAmenityForSchedule
+    ? bookings
+        .filter((b) => b.amenities.name === selectedAmenityForSchedule.name)
+        .map((b) => new Date(b.booking_date))
+    : [];
+
+  const handleViewBooking = (booking: AmenityBooking) => {
+    setSelectedBooking(booking);
+    setShowViewBookingModal(true);
+  };
+
+  const closeViewBookingModal = () => {
+    setShowViewBookingModal(false);
+    setSelectedBooking(null);
+  };
+
+  const handleViewSchedule = (amenity: Amenity) => {
+    setSelectedAmenityForSchedule(amenity);
+    setScheduleDate(undefined);
+    setShowScheduleModal(true);
+  };
+
+  const closeScheduleModal = () => {
+    setShowScheduleModal(false);
+    setSelectedAmenityForSchedule(null);
+    setScheduleDate(undefined);
+  };
+
+  const handleDeleteAmenity = (amenity: Amenity) => {
+    setAmenityToDelete(amenity);
+    setShowDeleteModal(true);
+  };
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setAmenityToDelete(null);
+  };
+
+  const confirmDeleteAmenity = async () => {
+    if (!amenityToDelete) return;
+
+    setDeleteLoading(true);
+    try {
+      await deleteAmenity(amenityToDelete.id);
+      toast({
+        title: "Amenity Deleted",
+        description: `${amenityToDelete.name} has been deleted successfully.`,
+      });
+      closeDeleteModal();
+      fetchData();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to delete amenity.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
-      <MainLayout userRole="admin" userName={userName}>
+      <MainLayout
+        userRole={userRole as "admin" | "resident"}
+        userName={userName}
+      >
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-muted-foreground">Loading amenities data...</div>
         </div>
@@ -454,7 +549,11 @@ export default function AmenitiesPageClient({userName, userRole}: {userName: str
                             </td>
                             <td className="py-3">
                               <div className="flex space-x-2">
-                                <Button size="sm" variant="outline">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleViewBooking(booking)}
+                                >
                                   View
                                 </Button>
                                 {booking.status === "pending" && (
@@ -529,8 +628,19 @@ export default function AmenitiesPageClient({userName, userRole}: {userName: str
                           >
                             Edit
                           </Button>
-                          <Button size="sm" variant="outline">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewSchedule(amenity)}
+                          >
                             Schedule
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeleteAmenity(amenity)}
+                          >
+                            Delete
                           </Button>
                         </div>
                       </CardContent>
@@ -695,7 +805,223 @@ export default function AmenitiesPageClient({userName, userRole}: {userName: str
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={showViewBookingModal}
+        onOpenChange={setShowViewBookingModal}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Booking Details</DialogTitle>
+          </DialogHeader>
+          {selectedBooking && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Resident</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedBooking.profiles.full_name}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Amenity</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedBooking.amenities.name}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Date</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDate(selectedBooking.booking_date)}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Time Slot</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedBooking.time_slot}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">
+                    Number of Guests
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedBooking.guests}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        selectedBooking.status === "approved"
+                          ? "default"
+                          : selectedBooking.status === "pending"
+                          ? "outline"
+                          : selectedBooking.status === "completed"
+                          ? "secondary"
+                          : "destructive"
+                      }
+                    >
+                      {selectedBooking.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Created At</Label>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(selectedBooking.created_at).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeViewBookingModal}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>
+              Schedule for {selectedAmenityForSchedule?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedAmenityForSchedule && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="font-semibold mb-3">Calendar View</h3>
+                  <UiCalendar
+                    mode="single"
+                    selected={scheduleDate}
+                    onSelect={setScheduleDate}
+                    modifiers={{ booked: amenityBookingDates }}
+                    modifiersClassNames={{ booked: "bg-primary/20" }}
+                  />
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-3">Amenity Details</h3>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      <strong>Capacity:</strong>{" "}
+                      {selectedAmenityForSchedule.capacity} people
+                    </p>
+                    <p>
+                      <strong>Rate:</strong> $
+                      {selectedAmenityForSchedule.hourly_rate}/hour
+                    </p>
+                    <p>
+                      <strong>Status:</strong>
+                      <Badge
+                        variant={
+                          selectedAmenityForSchedule.is_active
+                            ? "default"
+                            : "secondary"
+                        }
+                        className="ml-2"
+                      >
+                        {selectedAmenityForSchedule.is_active
+                          ? "Available"
+                          : "Inactive"}
+                      </Badge>
+                    </p>
+                    {selectedAmenityForSchedule.description && (
+                      <p>
+                        <strong>Description:</strong>{" "}
+                        {selectedAmenityForSchedule.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {scheduleDate && (
+                <div>
+                  <h3 className="font-semibold mb-3">
+                    Bookings for {scheduleDate.toLocaleDateString()}
+                  </h3>
+                  {bookingsForAmenityAndDate.length === 0 ? (
+                    <div className="text-muted-foreground">
+                      No bookings for this day.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {bookingsForAmenityAndDate.map((booking) => (
+                        <div key={booking.id} className="border rounded p-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="font-medium">{booking.time_slot}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Resident: {booking.profiles.full_name}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                Guests: {booking.guests}
+                              </p>
+                            </div>
+                            <Badge
+                              variant={
+                                booking.status === "approved"
+                                  ? "default"
+                                  : booking.status === "pending"
+                                  ? "outline"
+                                  : booking.status === "completed"
+                                  ? "secondary"
+                                  : "destructive"
+                              }
+                            >
+                              {booking.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeScheduleModal}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Amenity</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p>
+              Are you sure you want to delete{" "}
+              <strong>{amenityToDelete?.name}</strong>?
+            </p>
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone. If there are active bookings for
+              this amenity, the deletion will be prevented.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteModal}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteAmenity}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
-

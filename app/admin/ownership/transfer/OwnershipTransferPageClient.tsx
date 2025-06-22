@@ -2,8 +2,8 @@
 
 import type React from "react";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ArrowRightLeft } from "lucide-react";
 
@@ -28,18 +28,83 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { transferUnitOwnership, getAllResidentsWithUnits } from "@/lib/actions";
 
-export default function TransferOwnershipPage({userName, userRole}: {userName: string, userRole: "admin" | "resident"}) {
+export default function TransferOwnershipPage({
+  userName,
+  userRole,
+}: {
+  userName: string;
+  userRole: "admin" | "resident";
+}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [residents, setResidents] = useState<any[]>([]);
+  const [loadingResidents, setLoadingResidents] = useState(true);
+
+  // Form state
+  const [ownershipId, setOwnershipId] = useState(
+    searchParams.get("ownershipId") || ""
+  );
+  const [newOwnerId, setNewOwnerId] = useState("");
+  const [transferPercentage, setTransferPercentage] = useState(100);
+  const [transferDate, setTransferDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [transferReason, setTransferReason] = useState("");
+  const [partialTransfer, setPartialTransfer] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [confirmTransfer, setConfirmTransfer] = useState(false);
+
+  useEffect(() => {
+    async function fetchResidents() {
+      try {
+        setLoadingResidents(true);
+        const data = await getAllResidentsWithUnits();
+        setResidents(data);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch residents",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingResidents(false);
+      }
+    }
+
+    fetchResidents();
+  }, [toast]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      // TODO: Implement transfer ownership logic
+      if (!ownershipId) {
+        throw new Error("Please select an ownership record to transfer");
+      }
+
+      if (!newOwnerId) {
+        throw new Error("Please select a new owner");
+      }
+
+      if (!confirmTransfer) {
+        throw new Error("Please confirm the transfer");
+      }
+
+      const formData = new FormData();
+      formData.set("ownershipId", ownershipId);
+      formData.set("newOwnerId", newOwnerId);
+      formData.set("transferDate", transferDate);
+      formData.set("transferReason", transferReason);
+      formData.set("partialTransfer", partialTransfer.toString());
+      formData.set("transferPercentage", transferPercentage.toString());
+
+      await transferUnitOwnership(formData);
+
       toast({
         title: "Success",
         description: "Ownership transferred successfully",
@@ -89,71 +154,58 @@ export default function TransferOwnershipPage({userName, userRole}: {userName: s
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="unit">Select Unit</Label>
-                  <Select name="unit" required>
+                  <Label htmlFor="ownershipId">Ownership ID</Label>
+                  <Input
+                    id="ownershipId"
+                    value={ownershipId}
+                    onChange={(e) => setOwnershipId(e.target.value)}
+                    placeholder="Enter ownership ID"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The ID of the ownership record to transfer
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="newOwnerId">New Owner</Label>
+                  <Select
+                    value={newOwnerId}
+                    onValueChange={setNewOwnerId}
+                    disabled={loadingResidents}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Choose a unit to transfer" />
+                      <SelectValue
+                        placeholder={
+                          loadingResidents
+                            ? "Loading residents..."
+                            : "Select new owner"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="a-101">
-                        Block A, Unit 101 - John Smith (100%)
-                      </SelectItem>
-                      <SelectItem value="a-102">
-                        Block A, Unit 102 - Sarah Johnson (100%)
-                      </SelectItem>
-                      <SelectItem value="b-201">
-                        Block B, Unit 201 - Alice Brown (60%), Bob Wilson (40%)
-                      </SelectItem>
+                      {residents.map((resident) => (
+                        <SelectItem key={resident.id} value={resident.id}>
+                          {resident.full_name} ({resident.email})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="current-owner">Current Owner</Label>
-                  <Select name="current-owner" required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select current owner" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="john-smith">
-                        John Smith (100%)
-                      </SelectItem>
-                      <SelectItem value="sarah-johnson">
-                        Sarah Johnson (100%)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="new-owner">New Owner</Label>
-                  <Select name="new-owner" required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select new owner or add new" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mike-davis">
-                        Mike Davis (Existing Resident)
-                      </SelectItem>
-                      <SelectItem value="lisa-chen">
-                        Lisa Chen (Existing Resident)
-                      </SelectItem>
-                      <SelectItem value="new-owner">+ Add New Owner</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="transfer-percentage">
+                  <Label htmlFor="transferPercentage">
                     Transfer Percentage
                   </Label>
                   <Input
-                    id="transfer-percentage"
-                    name="transfer-percentage"
+                    id="transferPercentage"
                     type="number"
                     min="1"
                     max="100"
-                    defaultValue="100"
+                    value={transferPercentage}
+                    onChange={(e) =>
+                      setTransferPercentage(Number(e.target.value))
+                    }
                     required
                   />
                   <p className="text-xs text-muted-foreground">
@@ -163,18 +215,22 @@ export default function TransferOwnershipPage({userName, userRole}: {userName: s
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="transfer-date">Transfer Date</Label>
+                  <Label htmlFor="transferDate">Transfer Date</Label>
                   <Input
-                    id="transfer-date"
-                    name="transfer-date"
+                    id="transferDate"
                     type="date"
+                    value={transferDate}
+                    onChange={(e) => setTransferDate(e.target.value)}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="transfer-reason">Reason for Transfer</Label>
-                  <Select name="transfer-reason" required>
+                  <Label htmlFor="transferReason">Reason for Transfer</Label>
+                  <Select
+                    value={transferReason}
+                    onValueChange={setTransferReason}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select reason" />
                     </SelectTrigger>
@@ -194,21 +250,42 @@ export default function TransferOwnershipPage({userName, userRole}: {userName: s
                   <Label htmlFor="notes">Transfer Notes</Label>
                   <Textarea
                     id="notes"
-                    name="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
                     placeholder="Additional details about the transfer..."
                     rows={3}
                   />
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="confirm-transfer" required />
-                  <Label htmlFor="confirm-transfer" className="text-sm">
+                  <Checkbox
+                    id="partialTransfer"
+                    checked={partialTransfer}
+                    onCheckedChange={(checked) =>
+                      setPartialTransfer(checked as boolean)
+                    }
+                  />
+                  <Label htmlFor="partialTransfer" className="text-sm">
+                    This is a partial transfer (creates co-ownership)
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="confirmTransfer"
+                    checked={confirmTransfer}
+                    onCheckedChange={(checked) =>
+                      setConfirmTransfer(checked as boolean)
+                    }
+                    required
+                  />
+                  <Label htmlFor="confirmTransfer" className="text-sm">
                     I confirm that all legal documentation is in place for this
                     ownership transfer
                   </Label>
                 </div>
 
-                <div className="flex gap-2 pt-4">
+                <div className="flex gap-2">
                   <Button type="submit" disabled={isLoading}>
                     <ArrowRightLeft className="mr-2 h-4 w-4" />
                     {isLoading ? "Transferring..." : "Transfer Ownership"}

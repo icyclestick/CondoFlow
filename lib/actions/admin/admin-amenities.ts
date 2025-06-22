@@ -75,7 +75,6 @@ export async function approveAmenityBooking(bookingId: string) {
             .from("amenity_bookings")
             .update({
                 status: "approved",
-                updated_at: new Date().toISOString(),
             })
             .eq("id", bookingId)
             .select()
@@ -102,7 +101,6 @@ export async function rejectAmenityBooking(bookingId: string, reason?: string) {
             .update({
                 status: "rejected",
                 notes: reason ? `Rejected: ${reason}` : "Rejected by admin",
-                updated_at: new Date().toISOString(),
             })
             .eq("id", bookingId)
             .select()
@@ -202,7 +200,6 @@ export async function updateAmenity(amenityId: string, formData: FormData) {
                 hourly_rate: hourlyRate,
                 is_active: isActive,
                 requires_approval: requiresApproval,
-                updated_at: new Date().toISOString(),
             })
             .eq("id", amenityId)
             .select()

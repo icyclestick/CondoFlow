@@ -52,7 +52,13 @@ interface MoveRequestStats {
   moveOuts: number;
 }
 
-export default function AdminMoveRequestsPage({userName, userRole}: {userName: string, userRole: "admin" | "resident"}) {
+export default function AdminMoveRequestsPage({
+  userName,
+  userRole,
+}: {
+  userName: string;
+  userRole: "admin" | "resident";
+}) {
   const [requests, setRequests] = useState<MoveRequest[]>([]);
   const [stats, setStats] = useState<MoveRequestStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -146,10 +152,10 @@ export default function AdminMoveRequestsPage({userName, userRole}: {userName: s
   const filteredRequests = requests.filter((request) => {
     const matchesSearch =
       !searchTerm ||
-      request.profiles.full_name
+      (request.profiles?.full_name || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
-      `${request.units.block}-${request.units.unit_number}`
+      `${request.units?.block || ""}-${request.units?.unit_number || ""}`
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
@@ -165,7 +171,10 @@ export default function AdminMoveRequestsPage({userName, userRole}: {userName: s
 
   if (isLoading) {
     return (
-      <MainLayout userRole={userRole as "admin" | "resident"} userName={userName}>
+      <MainLayout
+        userRole={userRole as "admin" | "resident"}
+        userName={userName}
+      >
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-muted-foreground">
             Loading move requests data...
@@ -311,7 +320,7 @@ export default function AdminMoveRequestsPage({userName, userRole}: {userName: s
                         filteredRequests.map((request) => (
                           <tr key={request.id} className="border-b">
                             <td className="py-3">
-                              {request.profiles.full_name}
+                              {request.profiles?.full_name || "Unknown"}
                             </td>
                             <td className="py-3">
                               <Badge
@@ -327,8 +336,9 @@ export default function AdminMoveRequestsPage({userName, userRole}: {userName: s
                               </Badge>
                             </td>
                             <td className="py-3">
-                              Block {request.units.block}, #
-                              {request.units.unit_number}
+                              {request.units
+                                ? `Block ${request.units.block}, #${request.units.unit_number}`
+                                : "No unit assigned"}
                             </td>
                             <td className="py-3">
                               {formatDate(request.move_date)}
@@ -416,7 +426,7 @@ export default function AdminMoveRequestsPage({userName, userRole}: {userName: s
                         .map((request) => (
                           <tr key={request.id} className="border-b">
                             <td className="py-3">
-                              {request.profiles.full_name}
+                              {request.profiles?.full_name || "Unknown"}
                             </td>
                             <td className="py-3">
                               <Badge
@@ -432,8 +442,9 @@ export default function AdminMoveRequestsPage({userName, userRole}: {userName: s
                               </Badge>
                             </td>
                             <td className="py-3">
-                              Block {request.units.block}, #
-                              {request.units.unit_number}
+                              {request.units
+                                ? `Block ${request.units.block}, #${request.units.unit_number}`
+                                : "No unit assigned"}
                             </td>
                             <td className="py-3">
                               {formatDate(request.move_date)}
@@ -489,7 +500,7 @@ export default function AdminMoveRequestsPage({userName, userRole}: {userName: s
                         .map((request) => (
                           <tr key={request.id} className="border-b">
                             <td className="py-3">
-                              {request.profiles.full_name}
+                              {request.profiles?.full_name || "Unknown"}
                             </td>
                             <td className="py-3">
                               <Badge
@@ -505,8 +516,9 @@ export default function AdminMoveRequestsPage({userName, userRole}: {userName: s
                               </Badge>
                             </td>
                             <td className="py-3">
-                              Block {request.units.block}, #
-                              {request.units.unit_number}
+                              {request.units
+                                ? `Block ${request.units.block}, #${request.units.unit_number}`
+                                : "No unit assigned"}
                             </td>
                             <td className="py-3">
                               {formatDate(request.move_date)}

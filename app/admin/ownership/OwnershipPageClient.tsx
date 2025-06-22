@@ -385,14 +385,26 @@ export default function OwnershipPageClient({
                                 </td>
                                 <td className="p-4">
                                   <div className="flex space-x-2">
-                                    <Button size="sm" variant="outline">
-                                      View
+                                    <Button size="sm" variant="outline" asChild>
+                                      <Link
+                                        href={`/admin/ownership/${ownership.id}/view`}
+                                      >
+                                        View
+                                      </Link>
                                     </Button>
-                                    <Button size="sm" variant="outline">
-                                      Edit
+                                    <Button size="sm" variant="outline" asChild>
+                                      <Link
+                                        href={`/admin/ownership/${ownership.id}/edit`}
+                                      >
+                                        Edit
+                                      </Link>
                                     </Button>
-                                    <Button size="sm" variant="outline">
-                                      Transfer
+                                    <Button size="sm" variant="outline" asChild>
+                                      <Link
+                                        href={`/admin/ownership/transfer?ownershipId=${ownership.id}`}
+                                      >
+                                        Transfer
+                                      </Link>
                                     </Button>
                                   </div>
                                 </td>

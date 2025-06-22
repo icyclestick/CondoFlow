@@ -41,7 +41,7 @@ export async function getAllServiceRequests() {
         preferred_schedule,
         assigned_to,
         created_at,
-        profiles (
+        profiles:user_id (
           id,
           full_name,
           email,

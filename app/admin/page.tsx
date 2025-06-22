@@ -1,12 +1,3 @@
-import Link from "next/link";
-import {
-  ArrowRight,
-  Calendar,
-  DollarSign,
-  MessageSquare,
-  Users,
-} from "lucide-react";
-
 import { MainLayout } from "@/components/main-layout";
 import {
   getResidentStats,
