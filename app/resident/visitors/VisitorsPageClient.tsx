@@ -19,7 +19,18 @@ import { useToast } from "@/hooks/use-toast";
 import {
   getMyVisitorRequests,
   createVisitorRequest,
+  cancelVisitorRequest,
+  updateMyVisitorRequest,
+  checkOutVisitor,
+  checkInVisitor,
 } from "@/lib/actions/resident/resident-visitors";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export default function VisitorsPageClient({
   userName,
@@ -36,12 +47,14 @@ export default function VisitorsPageClient({
     visitorName: "",
     visitDate: "",
     timeIn: "",
-    timeOut: "",
     reason: "",
     vehicleInfo: "",
-    additionalNotes: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [viewVisitor, setViewVisitor] = useState<any | null>(null);
+  const [editingVisitor, setEditingVisitor] = useState<any | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     setLoadingHistory(true);
@@ -69,10 +82,8 @@ export default function VisitorsPageClient({
       formData.append("visitorName", form.visitorName);
       formData.append("visitDate", form.visitDate);
       formData.append("timeIn", form.timeIn);
-      formData.append("timeOut", form.timeOut);
       formData.append("reason", form.reason);
       formData.append("vehicleInfo", form.vehicleInfo);
-      formData.append("additionalNotes", form.additionalNotes);
       await createVisitorRequest(formData);
       toast({
         title: "Visitor Registered",
@@ -82,10 +93,8 @@ export default function VisitorsPageClient({
         visitorName: "",
         visitDate: "",
         timeIn: "",
-        timeOut: "",
         reason: "",
         vehicleInfo: "",
-        additionalNotes: "",
       });
       // Refresh visitor history
       getMyVisitorRequests().then(setVisitorHistory);
@@ -98,6 +107,98 @@ export default function VisitorsPageClient({
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    setCancelingId(id);
+    setError("");
+    try {
+      await cancelVisitorRequest(id);
+      setVisitorHistory(await getMyVisitorRequests());
+      toast({
+        title: "Visitor Cancelled",
+        description: "Visitor request has been cancelled successfully.",
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to cancel visitor request.");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to cancel visitor request",
+        variant: "destructive",
+      });
+    } finally {
+      setCancelingId(null);
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVisitor) return;
+
+    setIsEditing(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("visitorName", editingVisitor.visitor_name);
+      formData.append("visitDate", editingVisitor.visit_date);
+      formData.append("timeIn", editingVisitor.time_in);
+      formData.append("reason", editingVisitor.reason);
+      formData.append("vehicleInfo", editingVisitor.vehicle_info || "");
+
+      await updateMyVisitorRequest(editingVisitor.id, formData);
+
+      setVisitorHistory(await getMyVisitorRequests());
+      setEditingVisitor(null);
+      toast({
+        title: "Visitor Updated",
+        description: "Visitor request has been updated successfully.",
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to update visitor request.");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update visitor request",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  const handleCheckOut = async (id: string) => {
+    try {
+      await checkOutVisitor(id);
+      setVisitorHistory(await getMyVisitorRequests());
+      toast({
+        title: "Visitor Checked Out",
+        description: "Visitor has been checked out successfully.",
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to check out visitor.");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to check out visitor",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCheckIn = async (id: string) => {
+    try {
+      await checkInVisitor(id);
+      setVisitorHistory(await getMyVisitorRequests());
+      toast({
+        title: "Visitor Checked In",
+        description: "Visitor has been checked in successfully.",
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to check in visitor.");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to check in visitor",
+        variant: "destructive",
+      });
     }
   };
 
@@ -168,17 +269,6 @@ export default function VisitorsPageClient({
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="time-out">Expected Time Out</Label>
-                      <input
-                        id="time-out"
-                        name="timeOut"
-                        type="time"
-                        value={form.timeOut}
-                        onChange={handleFormChange}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reason">Reason for Visit</Label>
@@ -213,19 +303,6 @@ export default function VisitorsPageClient({
                       placeholder="License plate number, car model, color"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="additional-notes">
-                      Additional Notes (Optional)
-                    </Label>
-                    <textarea
-                      id="additional-notes"
-                      name="additionalNotes"
-                      value={form.additionalNotes}
-                      onChange={handleFormChange}
-                      className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      placeholder="Any additional information about the visitor"
-                    />
-                  </div>
                   <div className="flex justify-end">
                     <Button type="submit" disabled={isSubmitting}>
                       {isSubmitting ? "Registering..." : "Register Visitor"}
@@ -254,37 +331,106 @@ export default function VisitorsPageClient({
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr>
-                          <th>Visitor Name</th>
-                          <th>Visit Date</th>
-                          <th>Time In</th>
-                          <th>Time Out</th>
-                          <th>Reason</th>
-                          <th>Vehicle Info</th>
-                          <th>Additional Notes</th>
-                          <th>Actions</th>
+                        <tr className="border-b text-left text-sm font-medium text-muted-foreground">
+                          <th className="pb-2">Visitor Name</th>
+                          <th className="pb-2">Visit Date</th>
+                          <th className="pb-2">Time In</th>
+                          <th className="pb-2">Reason</th>
+                          <th className="pb-2">Status</th>
+                          <th className="pb-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {visitorHistory.map((visitor) => (
-                          <tr key={visitor.id}>
-                            <td>{visitor.visitorName}</td>
-                            <td>{visitor.visitDate}</td>
-                            <td>{visitor.timeIn}</td>
-                            <td>{visitor.timeOut}</td>
-                            <td>{visitor.reason}</td>
-                            <td>{visitor.vehicleInfo}</td>
-                            <td>{visitor.additionalNotes}</td>
-                            <td>
-                              <Button variant="ghost" size="icon">
-                                <span className="sr-only">Edit</span>
-                              </Button>
-                              <Button variant="ghost" size="icon">
-                                <span className="sr-only">Delete</span>
-                              </Button>
+                        {visitorHistory.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="py-8 text-center text-muted-foreground"
+                            >
+                              No visitor requests found
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          visitorHistory.map((visitor) => (
+                            <tr key={visitor.id} className="border-b">
+                              <td className="py-3">{visitor.visitor_name}</td>
+                              <td className="py-3">{visitor.visit_date}</td>
+                              <td className="py-3">{visitor.time_in}</td>
+                              <td className="py-3 max-w-xs truncate">
+                                {visitor.reason}
+                              </td>
+                              <td className="py-3">
+                                <Badge
+                                  variant={
+                                    visitor.status === "checked-out"
+                                      ? "secondary"
+                                      : visitor.status === "checked-in"
+                                      ? "default"
+                                      : visitor.status === "approved"
+                                      ? "outline"
+                                      : visitor.status === "cancelled"
+                                      ? "destructive"
+                                      : "outline"
+                                  }
+                                >
+                                  {visitor.status}
+                                </Badge>
+                              </td>
+                              <td className="py-3">
+                                <div className="flex space-x-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setViewVisitor(visitor)}
+                                  >
+                                    View
+                                  </Button>
+                                  {visitor.status === "pending" && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() =>
+                                          setEditingVisitor(visitor)
+                                        }
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() => handleCancel(visitor.id)}
+                                        disabled={cancelingId === visitor.id}
+                                      >
+                                        {cancelingId === visitor.id
+                                          ? "Cancelling..."
+                                          : "Cancel"}
+                                      </Button>
+                                    </>
+                                  )}
+                                  {visitor.status === "approved" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleCheckIn(visitor.id)}
+                                    >
+                                      Check In
+                                    </Button>
+                                  )}
+                                  {visitor.status === "checked-in" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleCheckOut(visitor.id)}
+                                    >
+                                      Check Out
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -294,6 +440,222 @@ export default function VisitorsPageClient({
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* View Visitor Modal */}
+      <Dialog open={!!viewVisitor} onOpenChange={() => setViewVisitor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Visitor Details</DialogTitle>
+          </DialogHeader>
+          {viewVisitor && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Visitor Name</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewVisitor.visitor_name}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Visit Date</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewVisitor.visit_date}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Time In</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewVisitor.time_in}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Time Out</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewVisitor.time_out || "Not checked out yet"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Reason</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewVisitor.reason}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        viewVisitor.status === "checked-out"
+                          ? "secondary"
+                          : viewVisitor.status === "checked-in"
+                          ? "default"
+                          : viewVisitor.status === "approved"
+                          ? "outline"
+                          : viewVisitor.status === "cancelled"
+                          ? "destructive"
+                          : "outline"
+                      }
+                    >
+                      {viewVisitor.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              {viewVisitor.vehicle_info && (
+                <div>
+                  <Label className="text-sm font-medium">
+                    Vehicle Information
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {viewVisitor.vehicle_info}
+                  </p>
+                </div>
+              )}
+              <div>
+                <Label className="text-sm font-medium">Created At</Label>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(viewVisitor.created_at).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewVisitor(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Visitor Modal */}
+      <Dialog
+        open={!!editingVisitor}
+        onOpenChange={() => setEditingVisitor(null)}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Visitor Request</DialogTitle>
+          </DialogHeader>
+          {editingVisitor && (
+            <form onSubmit={handleEdit} className="space-y-6">
+              {error && <div className="text-red-600">{error}</div>}
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-visitor-name">Visitor Name</Label>
+                  <input
+                    id="edit-visitor-name"
+                    name="visitorName"
+                    type="text"
+                    required
+                    value={editingVisitor.visitor_name}
+                    onChange={(e) =>
+                      setEditingVisitor({
+                        ...editingVisitor,
+                        visitor_name: e.target.value,
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder="Enter visitor's full name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-visit-date">Visit Date</Label>
+                  <input
+                    id="edit-visit-date"
+                    name="visitDate"
+                    type="date"
+                    required
+                    value={editingVisitor.visit_date}
+                    onChange={(e) =>
+                      setEditingVisitor({
+                        ...editingVisitor,
+                        visit_date: e.target.value,
+                      })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-time-in">Expected Time In</Label>
+                <input
+                  id="edit-time-in"
+                  name="timeIn"
+                  type="time"
+                  required
+                  value={editingVisitor.time_in}
+                  onChange={(e) =>
+                    setEditingVisitor({
+                      ...editingVisitor,
+                      time_in: e.target.value,
+                    })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-reason">Reason for Visit</Label>
+                <select
+                  id="edit-reason"
+                  name="reason"
+                  required
+                  value={editingVisitor.reason}
+                  onChange={(e) =>
+                    setEditingVisitor({
+                      ...editingVisitor,
+                      reason: e.target.value,
+                    })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="personal">Personal Visit</option>
+                  <option value="business">Business Meeting</option>
+                  <option value="delivery">Delivery/Service</option>
+                  <option value="maintenance">Maintenance Work</option>
+                  <option value="family">Family Visit</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-vehicle-info">
+                  Vehicle Information (Optional)
+                </Label>
+                <input
+                  id="edit-vehicle-info"
+                  name="vehicleInfo"
+                  type="text"
+                  value={editingVisitor.vehicle_info || ""}
+                  onChange={(e) =>
+                    setEditingVisitor({
+                      ...editingVisitor,
+                      vehicle_info: e.target.value,
+                    })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="License plate number, car model, color"
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingVisitor(null)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isEditing}>
+                  {isEditing ? "Updating..." : "Update Request"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

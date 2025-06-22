@@ -61,6 +61,7 @@ export function MainLayout({ children, userRole, userName }: MainLayoutProps) {
     { href: "/admin/ownership", label: "Ownerships", icon: UserRoundCog },
     { href: "/admin/units", label: "Units", icon: Building },
     { href: "/admin/amenities", label: "Amenities", icon: Calendar },
+    { href: "/admin/visitors", label: "Visitors", icon: UserPlus },
     { href: "/admin/move-requests", label: "Move Requests", icon: Truck },
     { href: "/admin/gatepass", label: "Gatepass", icon: DoorOpen },
     { href: "/admin/services", label: "Services", icon: Wrench },

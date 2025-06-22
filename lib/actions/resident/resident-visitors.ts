@@ -235,7 +235,10 @@ export async function cancelVisitorRequest(requestId: string) {
 
         const { error } = await supabase
             .from("visitors")
-            .delete()
+            .update({
+                status: "cancelled",
+                updated_at: new Date().toISOString(),
+            })
             .eq("id", requestId)
             .eq("user_id", user.id)
 
@@ -291,5 +294,58 @@ export async function checkOutVisitor(requestId: string) {
     } catch (error) {
         console.error("Error checking out visitor:", error)
         throw new Error(error instanceof Error ? error.message : "Failed to check out visitor")
+    }
+}
+
+// Check in a visitor (resident can check in their own approved visitors)
+export async function checkInVisitor(requestId: string) {
+    const { user, supabase } = await getAuthenticatedResident()
+
+    try {
+        // Verify the request belongs to the current user and is approved
+        const { data: request, error: fetchError } = await supabase
+            .from("visitors")
+            .select("id, user_id, status, visit_date")
+            .eq("id", requestId)
+            .eq("user_id", user.id)
+            .single()
+
+        if (fetchError || !request) {
+            throw new Error("Visitor request not found or access denied")
+        }
+
+        if (request.status !== "approved") {
+            throw new Error("Visitor must be approved to check in")
+        }
+
+        // Check if visit is today
+        const visitDate = new Date(request.visit_date)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        visitDate.setHours(0, 0, 0, 0)
+
+        if (visitDate.getTime() !== today.getTime()) {
+            throw new Error("Can only check in visitors on their scheduled visit date")
+        }
+
+        const { error } = await supabase
+            .from("visitors")
+            .update({
+                status: "checked-in",
+                time_in: new Date().toTimeString().slice(0, 8),
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", requestId)
+            .eq("user_id", user.id)
+
+        if (error) {
+            throw new Error(`Failed to check in visitor: ${error.message}`)
+        }
+
+        revalidatePath("/resident/visitors")
+        return { success: true }
+    } catch (error) {
+        console.error("Error checking in visitor:", error)
+        throw new Error(error instanceof Error ? error.message : "Failed to check in visitor")
     }
 } 
