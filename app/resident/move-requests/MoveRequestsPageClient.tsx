@@ -26,6 +26,7 @@ import {
   getMyMoveRequests,
   cancelMoveRequest,
   updateMyMoveRequest,
+  getMyAvailableUnits,
 } from "@/lib/actions/resident/resident-move-requests";
 
 export default function MoveRequestsPageClient({
@@ -41,6 +42,8 @@ export default function MoveRequestsPageClient({
   const [movingCompany, setMovingCompany] = useState("");
   const [reason, setReason] = useState("");
   const [largeItems, setLargeItems] = useState("");
+  const [selectedUnitId, setSelectedUnitId] = useState("");
+  const [availableUnits, setAvailableUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -58,9 +61,21 @@ export default function MoveRequestsPageClient({
     return `${start} - ${end}`;
   });
 
-  // Fetch move requests on mount
+  // Fetch move requests and available units on mount
   React.useEffect(() => {
-    getMyMoveRequests().then(setMoveRequests);
+    const fetchData = async () => {
+      try {
+        const [requestsData, unitsData] = await Promise.all([
+          getMyMoveRequests(),
+          getMyAvailableUnits(),
+        ]);
+        setMoveRequests(requestsData);
+        setAvailableUnits(unitsData);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+    fetchData();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,6 +91,7 @@ export default function MoveRequestsPageClient({
       formData.append("movingCompany", movingCompany);
       formData.append("reason", reason);
       formData.append("largeItems", largeItems);
+      formData.append("unitId", selectedUnitId);
       const res = await createMoveRequest(formData);
       setSuccess("Move request submitted successfully!");
       setType("move-in");
@@ -84,6 +100,7 @@ export default function MoveRequestsPageClient({
       setMovingCompany("");
       setReason("");
       setLargeItems("");
+      setSelectedUnitId("");
       // Refresh move requests
       setMoveRequests(await getMyMoveRequests());
     } catch (err: any) {
@@ -120,6 +137,7 @@ export default function MoveRequestsPageClient({
       formData.append("movingCompany", editingRequest.moving_company || "");
       formData.append("reason", editingRequest.reason);
       formData.append("largeItems", editingRequest.large_items || "");
+      formData.append("unitId", editingRequest.unit_id || "");
 
       await updateMyMoveRequest(editingRequest.id, formData);
 
@@ -176,6 +194,23 @@ export default function MoveRequestsPageClient({
                         <Label htmlFor="move-out">Move-out</Label>
                       </div>
                     </RadioGroup>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="unit">Unit</Label>
+                    <select
+                      id="unit"
+                      value={selectedUnitId}
+                      onChange={(e) => setSelectedUnitId(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      required
+                    >
+                      <option value="">Select a unit</option>
+                      {availableUnits.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          Block {unit.block}, Unit {unit.unit_number}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-2">
@@ -263,6 +298,7 @@ export default function MoveRequestsPageClient({
                     <thead>
                       <tr className="border-b text-left text-sm font-medium text-muted-foreground">
                         <th className="pb-2">Request Type</th>
+                        <th className="pb-2">Unit</th>
                         <th className="pb-2">Date</th>
                         <th className="pb-2">Time</th>
                         <th className="pb-2">Status</th>
@@ -273,6 +309,23 @@ export default function MoveRequestsPageClient({
                       {moveRequests.map((request, i) => (
                         <tr key={request.id || i} className="border-b">
                           <td className="py-3">{request.type}</td>
+                          <td className="py-3">
+                            {request.unit_id
+                              ? availableUnits.find(
+                                  (u) => u.id === request.unit_id
+                                )
+                                ? `Block ${
+                                    availableUnits.find(
+                                      (u) => u.id === request.unit_id
+                                    ).block
+                                  }, Unit ${
+                                    availableUnits.find(
+                                      (u) => u.id === request.unit_id
+                                    ).unit_number
+                                  }`
+                                : "Unit not found"
+                              : "No unit specified"}
+                          </td>
                           <td className="py-3">{request.move_date}</td>
                           <td className="py-3">{request.time_slot}</td>
                           <td className="py-3">
@@ -338,6 +391,24 @@ export default function MoveRequestsPageClient({
                         <b>Type:</b> {viewRequest.type}
                       </div>
                       <div className="mb-2">
+                        <b>Unit:</b>{" "}
+                        {viewRequest.unit_id
+                          ? availableUnits.find(
+                              (u) => u.id === viewRequest.unit_id
+                            )
+                            ? `Block ${
+                                availableUnits.find(
+                                  (u) => u.id === viewRequest.unit_id
+                                ).block
+                              }, Unit ${
+                                availableUnits.find(
+                                  (u) => u.id === viewRequest.unit_id
+                                ).unit_number
+                              }`
+                            : "Unit not found"
+                          : "No unit specified"}
+                      </div>
+                      <div className="mb-2">
                         <b>Date:</b> {viewRequest.move_date}
                       </div>
                       <div className="mb-2">
@@ -393,6 +464,29 @@ export default function MoveRequestsPageClient({
                 <div className="text-sm text-muted-foreground">
                   {editingRequest.type === "move-in" ? "Move-in" : "Move-out"}
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-unit">Unit</Label>
+                <select
+                  id="edit-unit"
+                  value={editingRequest.unit_id || ""}
+                  onChange={(e) =>
+                    setEditingRequest({
+                      ...editingRequest,
+                      unit_id: e.target.value,
+                    })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  required
+                >
+                  <option value="">Select a unit</option>
+                  {availableUnits.map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      Block {unit.block}, Unit {unit.unit_number}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">

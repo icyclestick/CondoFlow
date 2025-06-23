@@ -36,9 +36,10 @@ export async function createMoveRequest(formData: FormData) {
         const movingCompany = formData.get("movingCompany") as string
         const reason = formData.get("reason") as string
         const largeItems = formData.get("largeItems") as string
+        const unitId = formData.get("unitId") as string
 
-        if (!type || !moveDate || !timeSlot || !reason) {
-            throw new Error("Move type, date, time slot, and reason are required")
+        if (!type || !moveDate || !timeSlot || !reason || !unitId) {
+            throw new Error("Move type, date, time slot, reason, and unit are required")
         }
 
         const { data, error } = await supabase
@@ -51,6 +52,7 @@ export async function createMoveRequest(formData: FormData) {
                 moving_company: movingCompany || null,
                 reason,
                 large_items: largeItems || null,
+                unit_id: unitId,
                 status: "pending",
             })
             .select()
@@ -168,6 +170,7 @@ export async function updateMyMoveRequest(requestId: string, formData: FormData)
         const movingCompany = formData.get("movingCompany") as string
         const reason = formData.get("reason") as string
         const largeItems = formData.get("largeItems") as string
+        const unitId = formData.get("unitId") as string
 
         const updateData: any = {}
 
@@ -176,6 +179,7 @@ export async function updateMyMoveRequest(requestId: string, formData: FormData)
         if (movingCompany !== null) updateData.moving_company = movingCompany
         if (reason) updateData.reason = reason
         if (largeItems !== null) updateData.large_items = largeItems
+        if (unitId) updateData.unit_id = unitId
 
         const { error } = await supabase
             .from("move_requests")
@@ -234,5 +238,64 @@ export async function cancelMoveRequest(requestId: string) {
     } catch (error) {
         console.error("Error canceling move request:", error)
         throw new Error(error instanceof Error ? error.message : "Failed to cancel move request")
+    }
+}
+
+// Get resident's available units for move requests
+export async function getMyAvailableUnits() {
+    const { user, supabase } = await getAuthenticatedResident()
+
+    try {
+        // Get units the resident lives in (for move-out requests)
+        const { data: residingUnits, error: residencyError } = await supabase
+            .from("unit_residency")
+            .select(`
+                units (
+                    id,
+                    block,
+                    unit_number,
+                    status
+                )
+            `)
+            .eq("resident_id", user.id)
+            .eq("is_active", true)
+
+        if (residencyError) {
+            console.error("Error fetching residing units:", residencyError)
+        }
+
+        // Get units the resident owns (for move-in requests)
+        const { data: ownedUnits, error: ownershipError } = await supabase
+            .from("unit_ownership")
+            .select(`
+                units (
+                    id,
+                    block,
+                    unit_number,
+                    status
+                )
+            `)
+            .eq("owner_id", user.id)
+            .eq("is_active", true)
+
+        if (ownershipError) {
+            console.error("Error fetching owned units:", ownershipError)
+        }
+
+        // Combine and deduplicate units
+        const allUnits = [
+            ...(residingUnits?.map((r: any) => r.units) || []),
+            ...(ownedUnits?.map((o: any) => o.units) || [])
+        ]
+
+        // Remove duplicates based on unit ID
+        const uniqueUnits = allUnits.filter((unit, index, self) =>
+            index === self.findIndex((u) => u.id === unit.id)
+        )
+
+        return uniqueUnits || []
+    } catch (error) {
+        console.error("Error fetching available units:", error)
+        throw new Error(error instanceof Error ? error.message : "Failed to fetch available units")
     }
 } 
